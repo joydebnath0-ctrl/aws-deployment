@@ -1674,6 +1674,25 @@ function initUsersUI() {
   if (usersInitialized) return;
   usersInitialized = true;
 
+  // Tab switching for Users panel
+  const usersTabs = document.querySelectorAll('#svc-panel-users .ec2-tab');
+  const usersTabContents = document.querySelectorAll('#svc-panel-users .ec2-tab-content');
+  usersTabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const targetTab = tab.dataset.tab;
+      usersTabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      usersTabContents.forEach(c => {
+        c.classList.toggle('active', c.id === `tab-content-${targetTab}`);
+      });
+      // Clear messages when switching tabs
+      ['users-error','users-success','create-user-error','create-user-success'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+      });
+    });
+  });
+
   const btnRefresh = document.getElementById('btn-refresh-users');
   if (btnRefresh) {
     btnRefresh.addEventListener('click', fetchUsers);
@@ -1682,9 +1701,11 @@ function initUsersUI() {
   const createForm = document.getElementById('create-user-form');
   if (createForm) {
     createForm.addEventListener('submit', handleCreateUser);
-    // Default: isVerified checked
+    // Default: isVerified ON, isAdmin OFF
     const verifiedChk = document.getElementById('new-user-is-verified');
     if (verifiedChk) verifiedChk.checked = true;
+    const adminChk = document.getElementById('new-user-is-admin');
+    if (adminChk) adminChk.checked = false;
   }
 }
 
