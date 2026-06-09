@@ -1,0 +1,1210 @@
+// ===== STATIC DATA =====
+const REGIONS = [
+  { value: "us-east-1", label: "us-east-1 (N. Virginia)" },
+  { value: "us-east-2", label: "us-east-2 (Ohio)" },
+  { value: "us-west-1", label: "us-west-1 (N. California)" },
+  { value: "us-west-2", label: "us-west-2 (Oregon)" },
+  { value: "eu-west-1", label: "eu-west-1 (Ireland)" },
+  { value: "eu-central-1", label: "eu-central-1 (Frankfurt)" },
+  { value: "ap-south-1", label: "ap-south-1 (Mumbai)" },
+  { value: "ap-southeast-1", label: "ap-southeast-1 (Singapore)" },
+  { value: "ap-northeast-1", label: "ap-northeast-1 (Tokyo)" },
+];
+
+const INSTANCE_TYPES = [
+  { value: "t3.nano",   label: "t3.nano — 2 vCPU, 0.5 GB RAM",  price: "$0.0052/hr" },
+  { value: "t3.micro",  label: "t3.micro — 2 vCPU, 1 GB RAM",   price: "$0.0104/hr" },
+  { value: "t3.small",  label: "t3.small — 2 vCPU, 2 GB RAM",   price: "$0.0208/hr" },
+  { value: "t3.medium", label: "t3.medium — 2 vCPU, 4 GB RAM",  price: "$0.0416/hr" },
+  { value: "t3.large",  label: "t3.large — 2 vCPU, 8 GB RAM",   price: "$0.0832/hr" },
+  { value: "m5.large",  label: "m5.large — 2 vCPU, 8 GB RAM",   price: "$0.096/hr"  },
+  { value: "m5.xlarge", label: "m5.xlarge — 4 vCPU, 16 GB RAM", price: "$0.192/hr"  },
+  { value: "c5.large",  label: "c5.large — 2 vCPU, 4 GB RAM",   price: "$0.085/hr"  },
+  { value: "c5.xlarge", label: "c5.xlarge — 4 vCPU, 8 GB RAM",  price: "$0.17/hr"   },
+  { value: "r5.large",  label: "r5.large — 2 vCPU, 16 GB RAM",  price: "$0.126/hr"  },
+];
+
+const OS_IMAGES = [
+  { value: "ami-ubuntu-22",     label: "Ubuntu 22.04 LTS",     tags: ["Recommended"] },
+  { value: "ami-ubuntu-20",     label: "Ubuntu 20.04 LTS",     tags: [] },
+  { value: "ami-amazon-linux-2",label: "Amazon Linux 2023",    tags: [] },
+  { value: "ami-debian-12",     label: "Debian 12 (Bookworm)", tags: [] },
+  { value: "ami-rhel-9",        label: "RHEL 9",               tags: ["Enterprise"] },
+  { value: "ami-windows-2022",  label: "Windows Server 2022",  tags: [] },
+  { value: "custom",            label: "Custom AMI ID...",     tags: [] },
+];
+
+const OS_AMI_MAP = {
+  "ami-ubuntu-22":      { "us-east-1":"ami-0c7217cdde317cfec","us-east-2":"ami-05fb0b8c1424f266b","us-west-1":"ami-0ec6087c2fa028c2a","us-west-2":"ami-03f12c7a6f2b1d7d0","eu-west-1":"ami-0d940f23d527c3ab1","eu-central-1":"ami-0084a47cc718ce3ba","ap-south-1":"ami-007020fd9c84e18c7","ap-southeast-1":"ami-06c56143c12aa97de","ap-northeast-1":"ami-0d9793cbbda373493" },
+  "ami-ubuntu-20":      { "us-east-1":"ami-0261755bbcb8c4a84","us-east-2":"ami-043e0a7e189874d6f","us-west-1":"ami-0485b018598ecc57b","us-west-2":"ami-0a36eb3f9d402c723","eu-west-1":"ami-09e2d3e168887ee2d","eu-central-1":"ami-0d527b8f28d768820","ap-south-1":"ami-0851b76e8b1bce90b","ap-southeast-1":"ami-0e2e255f0a631f41d","ap-northeast-1":"ami-01d017b2046ff9187" },
+  "ami-amazon-linux-2": { "us-east-1":"ami-0aa7d40eeae50c9a9","us-east-2":"ami-0d406e26e5ad857fc","us-west-1":"ami-0da34fa616428c05c","us-west-2":"ami-0f3769c3a8c454e60","eu-west-1":"ami-02fd09b5523267571","eu-central-1":"ami-09ad69fa8d011c750","ap-south-1":"ami-02b49a24cfb95941c","ap-southeast-1":"ami-07c87c0ecb43e8d2e","ap-northeast-1":"ami-0062ddc2bb74b6845" },
+  "ami-debian-12":      { "us-east-1":"ami-064519b8c76274859","us-east-2":"ami-02a8eb54378f8c6eb","us-west-1":"ami-0f6bc42a8b3e8e2b8","us-west-2":"ami-058bd2d568354de34","eu-west-1":"ami-00998a44ec1eb7433","eu-central-1":"ami-038c35b8015949d03","ap-south-1":"ami-055a5b5145b23d906","ap-southeast-1":"ami-01b44ecddb9c020d2","ap-northeast-1":"ami-00f723ad6ee221a60" },
+  "ami-rhel-9":         { "us-east-1":"ami-05f7491af5eef733a","us-east-2":"ami-08b26b96d133b6186","us-west-1":"ami-0d04fb469a4cc3b92","us-west-2":"ami-0df24b13b70eac221","eu-west-1":"ami-07b960b0e5d59048a","eu-central-1":"ami-09552199b53e7d3de","ap-south-1":"ami-0f5a4cf68c4a938c1","ap-southeast-1":"ami-0ec38cb09738d8f07","ap-northeast-1":"ami-0c7fdf1311ff0fbdf" },
+  "ami-windows-2022":   { "us-east-1":"ami-0c765d44cf1f25d26","us-east-2":"ami-0402f08a4f91d9006","us-west-1":"ami-05c317fa52971239c","us-west-2":"ami-0ab17a7c89b7b9f39","eu-west-1":"ami-0ec292db87d7b1b31","eu-central-1":"ami-0220d91244e8c56fa","ap-south-1":"ami-0f81d115fa016e7f8","ap-southeast-1":"ami-0985c5b9643c7b399","ap-northeast-1":"ami-0cb6f5a3a7f8ff3bd" },
+};
+
+// ===== STATE =====
+let eventSource = null;
+let currentLogTarget = null;
+let activeDeployments = [];
+let activeVpcs = [];
+let activeS3Buckets = [];
+let activeDistributions = [];
+let isDeploying = false;
+let currentService = 'ec2';
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', () => {
+  initServiceNav();
+  initEC2UI();
+  initVpcUI();
+  initS3UI();
+  initCfUI();
+  fetchAwsProfiles();
+  fetchDeployments();
+  fetchVpcs();
+  fetchS3Buckets();
+  fetchDistributions();
+  setInterval(fetchDeployments, 8000);
+  setInterval(fetchVpcs, 10000);
+  setInterval(fetchS3Buckets, 10000);
+  setInterval(fetchDistributions, 12000);
+});
+
+// ===== SERVICE NAV =====
+function initServiceNav() {
+  document.querySelectorAll('.svc-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const svc = btn.dataset.service;
+      currentService = svc;
+      document.querySelectorAll('.svc-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      document.querySelectorAll('.service-panel').forEach(p => p.classList.remove('active'));
+      document.getElementById(`svc-panel-${svc}`).classList.add('active');
+      document.getElementById('ssh-connect-banner').style.display = 'none';
+      document.getElementById('vpc-created-banner').style.display = 'none';
+      document.getElementById('s3-created-banner').style.display = 'none';
+      document.getElementById('cf-created-banner').style.display = 'none';
+      // Reload S3 bucket list for CloudFront selector when switching to CF
+      if (svc === 'cf') fetchS3BucketOptions();
+    });
+  });
+}
+
+// ===== EC2 UI =====
+function initEC2UI() {
+  const instanceTypeSelect = document.getElementById('instance-type');
+  const osImageSelect = document.getElementById('os-image');
+  const diskSlider = document.getElementById('disk-slider');
+  const diskNumber = document.getElementById('disk-number');
+  const nameInput = document.getElementById('instance-name');
+  const regionSelect = document.getElementById('aws-region');
+  const portsInput = document.getElementById('allowed-ports');
+  const profileSelect = document.getElementById('aws-profile');
+
+  INSTANCE_TYPES.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.value;
+    opt.textContent = t.label;
+    if (t.value === 't3.micro') opt.selected = true;
+    instanceTypeSelect.appendChild(opt);
+  });
+
+  OS_IMAGES.forEach(o => {
+    const opt = document.createElement('option');
+    opt.value = o.value;
+    const tagSuffix = o.tags.length > 0 ? ` [${o.tags.join(', ')}]` : '';
+    opt.textContent = o.label + tagSuffix;
+    if (o.value === 'ami-ubuntu-22') opt.selected = true;
+    osImageSelect.appendChild(opt);
+  });
+
+  diskSlider.value = 30;
+  diskNumber.value = 30;
+
+  // EC2 tab switching
+  const tabs = document.querySelectorAll('#svc-panel-ec2 .ec2-tab');
+  const tabContents = document.querySelectorAll('#svc-panel-ec2 .ec2-tab-content');
+  const deployBtnWrapper = document.getElementById('deploy-btn-wrapper');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const targetTab = tab.dataset.tab;
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      tabContents.forEach(c => {
+        c.classList.toggle('active', c.id === `tab-content-${targetTab}`);
+      });
+      const btnText = document.getElementById('btn-provision-text');
+      if (targetTab === 'ec2-deployments') {
+        deployBtnWrapper.style.display = 'none';
+      } else {
+        deployBtnWrapper.style.display = 'block';
+        if (targetTab === 'ec2-preview') {
+          btnText.textContent = '🚀 Deploy Configuration';
+          fetchEC2Preview();
+        } else {
+          btnText.textContent = '🚀\u00a0 Preview Configuration';
+        }
+      }
+    });
+  });
+
+  diskSlider.addEventListener('input', e => { diskNumber.value = e.target.value; document.getElementById('err-disk-size').style.display = 'none'; updateEC2Summary(); });
+  diskNumber.addEventListener('input', e => { let v = parseInt(e.target.value, 10); if (isNaN(v)) v = 8; diskSlider.value = v; updateEC2Summary(); });
+
+  const btnToggleAddProfile = document.getElementById('btn-toggle-add-profile');
+  const addProfileContainer = document.getElementById('add-profile-container');
+  btnToggleAddProfile.addEventListener('click', () => {
+    const open = addProfileContainer.style.display === 'none';
+    addProfileContainer.style.display = open ? 'block' : 'none';
+    btnToggleAddProfile.textContent = open ? '−' : '+';
+  });
+
+  document.getElementById('btn-save-profile').addEventListener('click', async () => {
+    const profileName = document.getElementById('new-profile-name').value.trim();
+    const accessKeyId = document.getElementById('new-profile-key').value.trim();
+    const secretAccessKey = document.getElementById('new-profile-secret').value.trim();
+    const errField = document.getElementById('err-new-profile-name');
+    errField.style.display = 'none';
+    if (!profileName || !accessKeyId || !secretAccessKey) { alert('All credential fields are required.'); return; }
+    if (!/^[a-zA-Z0-9-]+$/.test(profileName)) { errField.textContent = 'Profile name must be alphanumeric and dashes only'; errField.style.display = 'block'; return; }
+    try {
+      const res = await fetch('/api/aws-profiles', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profileName, accessKeyId, secretAccessKey }) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save profile');
+      await fetchAwsProfiles(profileName);
+      document.getElementById('new-profile-name').value = '';
+      document.getElementById('new-profile-key').value = '';
+      document.getElementById('new-profile-secret').value = '';
+      addProfileContainer.style.display = 'none';
+      btnToggleAddProfile.textContent = '+';
+    } catch (err) { alert(err.message); }
+  });
+
+  osImageSelect.addEventListener('change', () => {
+    document.getElementById('custom-ami-container').style.display = osImageSelect.value === 'custom' ? 'block' : 'none';
+    updateEC2Summary();
+  });
+
+  nameInput.addEventListener('input', () => { document.getElementById('err-instance-name').style.display = 'none'; updateEC2Summary(); });
+  regionSelect.addEventListener('change', updateEC2Summary);
+  instanceTypeSelect.addEventListener('change', updateEC2Summary);
+  portsInput.addEventListener('input', updateEC2Summary);
+  profileSelect.addEventListener('change', updateEC2Summary);
+
+  const btnToggleUserdata = document.getElementById('btn-toggle-userdata');
+  const userdataTextarea = document.getElementById('user-data');
+  const userdataSummary = document.getElementById('userdata-summary');
+  btnToggleUserdata.addEventListener('click', () => {
+    const hidden = userdataTextarea.style.display === 'none';
+    userdataTextarea.style.display = hidden ? 'block' : 'none';
+    userdataSummary.style.display = hidden ? 'none' : 'block';
+    btnToggleUserdata.textContent = hidden ? 'Hide' : 'Show';
+    if (!hidden) {
+      const lines = userdataTextarea.value.split('\n').filter(l => l.trim()).length;
+      userdataSummary.textContent = lines > 0 ? `${lines} lines of user data` : 'No user data configured';
+    }
+  });
+  userdataTextarea.addEventListener('input', () => {
+    const lines = userdataTextarea.value.split('\n').filter(l => l.trim()).length;
+    userdataSummary.textContent = lines > 0 ? `${lines} lines of user data` : 'No user data configured';
+  });
+
+  document.getElementById('btn-clear-logs').addEventListener('click', () => {
+    document.getElementById('log-terminal-container').innerHTML = '<div class="log-line" style="color:#484f58;">Terminal cleared.</div>';
+  });
+
+  document.getElementById('btn-provision-instance').addEventListener('click', () => {
+    const activeTab = document.querySelector('#svc-panel-ec2 .ec2-tab.active').dataset.tab;
+    if (activeTab === 'ec2-preview') {
+      deployEC2Instance();
+    } else {
+      if (validateEC2Form()) {
+        document.querySelector('#svc-panel-ec2 [data-tab="ec2-preview"]').click();
+      }
+    }
+  });
+
+  updateEC2Summary();
+}
+
+// ===== VPC UI =====
+function initVpcUI() {
+  const tabs = document.querySelectorAll('#svc-panel-vpc .ec2-tab');
+  const tabContents = document.querySelectorAll('#svc-panel-vpc .ec2-tab-content');
+  const deployBtnWrapper = document.getElementById('vpc-deploy-btn-wrapper');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const targetTab = tab.dataset.tab;
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      tabContents.forEach(c => c.classList.toggle('active', c.id === `tab-content-${targetTab}`));
+      const btnText = document.getElementById('btn-vpc-text');
+      if (targetTab === 'vpc-list') {
+        deployBtnWrapper.style.display = 'none';
+      } else {
+        deployBtnWrapper.style.display = 'block';
+        if (targetTab === 'vpc-preview') {
+          btnText.textContent = '🌐 Create VPC';
+          fetchVpcPreview();
+        } else {
+          btnText.textContent = '🌐\u00a0 Preview VPC Configuration';
+        }
+      }
+    });
+  });
+
+  ['vpc-name','vpc-cidr','vpc-public-subnets','vpc-private-subnets','vpc-enable-igw','vpc-enable-nat','vpc-dns-hostnames'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', updateVpcSummary);
+    if (el && el.tagName === 'INPUT' && el.type === 'text') el.addEventListener('input', updateVpcSummary);
+  });
+  document.getElementById('vpc-name').addEventListener('input', () => {
+    document.getElementById('err-vpc-name').style.display = 'none';
+    updateVpcSummary();
+  });
+
+  document.getElementById('btn-vpc-action').addEventListener('click', () => {
+    const activeTab = document.querySelector('#svc-panel-vpc .ec2-tab.active').dataset.tab;
+    if (activeTab === 'vpc-preview') {
+      createVpc();
+    } else {
+      if (validateVpcForm()) {
+        document.querySelector('#svc-panel-vpc [data-tab="vpc-preview"]').click();
+      }
+    }
+  });
+
+  updateVpcSummary();
+}
+
+// ===== S3 UI =====
+function initS3UI() {
+  const tabs = document.querySelectorAll('#svc-panel-s3 .ec2-tab');
+  const tabContents = document.querySelectorAll('#svc-panel-s3 .ec2-tab-content');
+  const deployBtnWrapper = document.getElementById('s3-deploy-btn-wrapper');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const targetTab = tab.dataset.tab;
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      tabContents.forEach(c => c.classList.toggle('active', c.id === `tab-content-${targetTab}`));
+      const btnText = document.getElementById('btn-s3-text');
+      if (targetTab === 's3-list') {
+        deployBtnWrapper.style.display = 'none';
+      } else {
+        deployBtnWrapper.style.display = 'block';
+        if (targetTab === 's3-preview') {
+          btnText.textContent = '🪣 Create S3 Bucket';
+          fetchS3Preview();
+        } else {
+          btnText.textContent = '🪣\u00a0 Preview Bucket Configuration';
+        }
+      }
+    });
+  });
+
+  ['s3-name','s3-encryption','s3-block-public','s3-versioning','s3-force-destroy'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', updateS3Summary);
+    if (el && el.tagName === 'INPUT' && el.type === 'text') el.addEventListener('input', updateS3Summary);
+  });
+  document.getElementById('s3-name').addEventListener('input', () => {
+    document.getElementById('err-s3-name').style.display = 'none';
+    updateS3Summary();
+  });
+
+  document.getElementById('btn-s3-action').addEventListener('click', () => {
+    const activeTab = document.querySelector('#svc-panel-s3 .ec2-tab.active').dataset.tab;
+    if (activeTab === 's3-preview') {
+      createS3Bucket();
+    } else {
+      if (validateS3Form()) {
+        document.querySelector('#svc-panel-s3 [data-tab="s3-preview"]').click();
+      }
+    }
+  });
+
+  updateS3Summary();
+}
+
+// ===== CLOUDFRONT UI =====
+function initCfUI() {
+  const tabs = document.querySelectorAll('#svc-panel-cf .ec2-tab');
+  const tabContents = document.querySelectorAll('#svc-panel-cf .ec2-tab-content');
+  const deployBtnWrapper = document.getElementById('cf-deploy-btn-wrapper');
+
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      const targetTab = tab.dataset.tab;
+      tabs.forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      tabContents.forEach(c => c.classList.toggle('active', c.id === `tab-content-${targetTab}`));
+      const btnText = document.getElementById('btn-cf-text');
+      if (targetTab === 'cf-list') {
+        deployBtnWrapper.style.display = 'none';
+      } else {
+        deployBtnWrapper.style.display = 'block';
+        if (targetTab === 'cf-preview') {
+          btnText.textContent = '☁️ Create Distribution';
+          fetchCfPreview();
+        } else {
+          btnText.textContent = '☁️\u00a0 Preview Distribution Configuration';
+        }
+      }
+    });
+  });
+
+  ['cf-name','cf-s3-bucket','cf-price-class','cf-protocol-policy','cf-default-ttl','cf-min-ttl','cf-max-ttl','cf-compress'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', updateCfSummary);
+    if (el && el.tagName === 'INPUT' && el.type === 'text') el.addEventListener('input', updateCfSummary);
+    if (el && el.tagName === 'INPUT' && el.type === 'number') el.addEventListener('input', updateCfSummary);
+  });
+  document.getElementById('cf-name').addEventListener('input', () => {
+    document.getElementById('err-cf-name').style.display = 'none';
+    updateCfSummary();
+  });
+  document.getElementById('cf-s3-bucket').addEventListener('change', () => {
+    document.getElementById('err-cf-s3-bucket').style.display = 'none';
+    updateCfSummary();
+  });
+
+  document.getElementById('btn-cf-action').addEventListener('click', () => {
+    const activeTab = document.querySelector('#svc-panel-cf .ec2-tab.active').dataset.tab;
+    if (activeTab === 'cf-preview') {
+      createCfDistribution();
+    } else {
+      if (validateCfForm()) {
+        document.querySelector('#svc-panel-cf [data-tab="cf-preview"]').click();
+      }
+    }
+  });
+
+  fetchS3BucketOptions();
+  updateCfSummary();
+}
+
+// ===== AWS PROFILES =====
+async function fetchAwsProfiles(selectProfileName = null) {
+  try {
+    const res = await fetch('/api/aws-profiles');
+    const profiles = await res.json();
+    const selects = ['aws-profile', 'vpc-profile', 's3-profile', 'cf-profile'];
+    selects.forEach(id => {
+      const sel = document.getElementById(id);
+      if (!sel) return;
+      sel.innerHTML = '';
+      const list = profiles.length === 0 ? ['default'] : profiles;
+      list.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p;
+        opt.textContent = p;
+        if (selectProfileName && p === selectProfileName) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    });
+    updateEC2Summary();
+    updateVpcSummary();
+    updateS3Summary();
+    updateCfSummary();
+  } catch (err) {
+    console.error('Error loading AWS profiles:', err);
+  }
+}
+
+// ===== EC2 SUMMARY =====
+function updateEC2Summary() {
+  const name = document.getElementById('instance-name').value.trim();
+  const profile = document.getElementById('aws-profile').value;
+  const region = document.getElementById('aws-region').value;
+  const type = document.getElementById('instance-type').value;
+  const os = document.getElementById('os-image').value;
+  const disk = document.getElementById('disk-number').value;
+  const ports = document.getElementById('allowed-ports').value.trim();
+  const typeObj = INSTANCE_TYPES.find(t => t.value === type);
+  document.getElementById('instance-price-info').textContent = typeObj ? `~${typeObj.price} on-demand` : '';
+  const osObj = OS_IMAGES.find(o => o.value === os);
+  let resolvedAmi = 'ami-unknown';
+  if (os === 'custom') resolvedAmi = document.getElementById('custom-ami-id').value.trim() || 'custom-input';
+  else if (OS_AMI_MAP[os]) resolvedAmi = OS_AMI_MAP[os][region] || 'ami-not-available';
+  document.getElementById('os-ami-id-info').textContent = resolvedAmi;
+  document.getElementById('summary-name').textContent = name || '—';
+  document.getElementById('summary-profile').textContent = profile;
+  document.getElementById('summary-region').textContent = region;
+  document.getElementById('summary-type').textContent = type;
+  document.getElementById('summary-os').textContent = osObj ? osObj.label : 'Custom';
+  document.getElementById('summary-disk').textContent = `${disk} GB (gp3)`;
+  document.getElementById('summary-ports').textContent = ports || '—';
+}
+
+// ===== VPC SUMMARY =====
+function updateVpcSummary() {
+  const name = document.getElementById('vpc-name').value.trim();
+  const cidr = document.getElementById('vpc-cidr').value;
+  const pub = document.getElementById('vpc-public-subnets').value;
+  const priv = document.getElementById('vpc-private-subnets').value;
+  const igw = document.getElementById('vpc-enable-igw').checked;
+  const nat = document.getElementById('vpc-enable-nat').checked;
+  document.getElementById('vpc-summary-name').textContent = name || '—';
+  document.getElementById('vpc-summary-cidr').textContent = cidr;
+  document.getElementById('vpc-summary-subnets').textContent = `${pub} public, ${priv} private`;
+  const gw = [];
+  if (igw) gw.push('IGW');
+  if (nat) gw.push('NAT');
+  document.getElementById('vpc-summary-gateways').textContent = gw.length ? gw.join(' + ') : 'None';
+}
+
+// ===== S3 SUMMARY =====
+function updateS3Summary() {
+  const name = document.getElementById('s3-name').value.trim();
+  const enc = document.getElementById('s3-encryption').value;
+  const blockPub = document.getElementById('s3-block-public').checked;
+  const versioning = document.getElementById('s3-versioning').checked;
+  document.getElementById('s3-summary-name').textContent = name || '—';
+  document.getElementById('s3-summary-encryption').textContent = enc === 'aws:kms' ? 'AWS KMS' : 'AES-256';
+  document.getElementById('s3-summary-public').textContent = blockPub ? 'Blocked ✓' : 'Public ⚠';
+  document.getElementById('s3-summary-versioning').textContent = versioning ? 'Enabled' : 'Disabled';
+}
+
+// ===== EC2 VALIDATION =====
+function validateEC2Form() {
+  let valid = true;
+  const name = document.getElementById('instance-name').value.trim();
+  const nameErr = document.getElementById('err-instance-name');
+  nameErr.style.display = 'none';
+  document.getElementById('instance-name').classList.remove('err');
+  if (!name) { nameErr.textContent = 'Instance name is required'; nameErr.style.display = 'block'; document.getElementById('instance-name').classList.add('err'); valid = false; }
+  else if (!/^[a-zA-Z0-9-]+$/.test(name)) { nameErr.textContent = 'Name must be alphanumeric and dashes only'; nameErr.style.display = 'block'; document.getElementById('instance-name').classList.add('err'); valid = false; }
+  const disk = parseInt(document.getElementById('disk-number').value, 10);
+  const diskErr = document.getElementById('err-disk-size');
+  diskErr.style.display = 'none';
+  if (isNaN(disk) || disk < 8 || disk > 16384) { diskErr.textContent = 'Disk size must be between 8 and 16384 GB'; diskErr.style.display = 'block'; valid = false; }
+  const ports = document.getElementById('allowed-ports').value.trim();
+  const portsErr = document.getElementById('err-allowed-ports');
+  portsErr.style.display = 'none';
+  if (!ports) { portsErr.textContent = 'At least one inbound port is required'; portsErr.style.display = 'block'; valid = false; }
+  else {
+    const list = ports.split(',').map(p => parseInt(p.trim(), 10));
+    if (list.find(p => isNaN(p) || p < 1 || p > 65535) !== undefined) { portsErr.textContent = 'All port values must be valid integers between 1 and 65535'; portsErr.style.display = 'block'; valid = false; }
+  }
+  if (!valid) document.querySelector('#svc-panel-ec2 [data-tab="ec2-basic"]').click();
+  return valid;
+}
+
+// ===== VPC VALIDATION =====
+function validateVpcForm() {
+  const name = document.getElementById('vpc-name').value.trim();
+  const nameErr = document.getElementById('err-vpc-name');
+  nameErr.style.display = 'none';
+  document.getElementById('vpc-name').classList.remove('err');
+  if (!name) { nameErr.textContent = 'VPC name is required'; nameErr.style.display = 'block'; document.getElementById('vpc-name').classList.add('err'); return false; }
+  if (!/^[a-zA-Z0-9-]+$/.test(name)) { nameErr.textContent = 'VPC name must be alphanumeric and dashes only'; nameErr.style.display = 'block'; document.getElementById('vpc-name').classList.add('err'); return false; }
+  return true;
+}
+
+// ===== S3 VALIDATION =====
+function validateS3Form() {
+  const name = document.getElementById('s3-name').value.trim();
+  const nameErr = document.getElementById('err-s3-name');
+  nameErr.style.display = 'none';
+  document.getElementById('s3-name').classList.remove('err');
+  if (!name) { nameErr.textContent = 'Bucket name is required'; nameErr.style.display = 'block'; document.getElementById('s3-name').classList.add('err'); return false; }
+  if (!/^[a-z0-9-]+$/.test(name)) { nameErr.textContent = 'Bucket name must be lowercase letters, numbers, and dashes only'; nameErr.style.display = 'block'; document.getElementById('s3-name').classList.add('err'); return false; }
+  if (name.length < 3 || name.length > 63) { nameErr.textContent = 'Bucket name must be between 3 and 63 characters'; nameErr.style.display = 'block'; document.getElementById('s3-name').classList.add('err'); return false; }
+  return true;
+}
+
+// ===== EC2 PREVIEW FETCH =====
+async function fetchEC2Preview() {
+  const name = document.getElementById('instance-name').value.trim();
+  const region = document.getElementById('aws-region').value;
+  const instanceType = document.getElementById('instance-type').value;
+  const os = document.getElementById('os-image').value;
+  const volumeSize = document.getElementById('disk-number').value;
+  const ports = document.getElementById('allowed-ports').value.trim();
+  const userData = document.getElementById('user-data').value;
+  let amiId = '';
+  if (os === 'custom') amiId = document.getElementById('custom-ami-id').value.trim() || 'ami-custom-input';
+  else if (OS_AMI_MAP[os]) amiId = OS_AMI_MAP[os][region];
+  const preMain = document.getElementById('preview-main-tf');
+  const preVars = document.getElementById('preview-tfvars');
+  preMain.textContent = 'Generating preview...';
+  preVars.textContent = 'Generating preview...';
+  try {
+    const res = await fetch('/api/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ports, userData }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Preview failed');
+    preMain.textContent = data.mainTf;
+    preVars.textContent = data.tfVarsJson;
+  } catch (err) {
+    preMain.textContent = `Error: ${err.message}`;
+    preVars.textContent = '';
+  }
+}
+
+// ===== VPC PREVIEW FETCH =====
+async function fetchVpcPreview() {
+  const vpcName = document.getElementById('vpc-name').value.trim();
+  const region = document.getElementById('vpc-region').value;
+  const cidrBlock = document.getElementById('vpc-cidr').value;
+  const publicSubnetCount = document.getElementById('vpc-public-subnets').value;
+  const privateSubnetCount = document.getElementById('vpc-private-subnets').value;
+  const enableIgw = document.getElementById('vpc-enable-igw').checked;
+  const enableNat = document.getElementById('vpc-enable-nat').checked;
+  const enableDnsHostnames = document.getElementById('vpc-dns-hostnames').checked;
+  const preMain = document.getElementById('vpc-preview-main-tf');
+  const preVars = document.getElementById('vpc-preview-tfvars');
+  preMain.textContent = 'Generating preview...';
+  preVars.textContent = 'Generating preview...';
+  try {
+    const res = await fetch('/api/vpc/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vpcName: vpcName || 'my-vpc', region, cidrBlock, publicSubnetCount, privateSubnetCount, enableIgw, enableNat, enableDnsHostnames }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Preview failed');
+    preMain.textContent = data.mainTf;
+    preVars.textContent = data.tfVarsJson;
+  } catch (err) {
+    preMain.textContent = `Error: ${err.message}`;
+    preVars.textContent = '';
+  }
+}
+
+// ===== S3 PREVIEW FETCH =====
+async function fetchS3Preview() {
+  const bucketName = document.getElementById('s3-name').value.trim();
+  const region = document.getElementById('s3-region').value;
+  const versioningEnabled = document.getElementById('s3-versioning').checked;
+  const blockPublicAccess = document.getElementById('s3-block-public').checked;
+  const encryptionAlgorithm = document.getElementById('s3-encryption').value;
+  const forceDestroy = document.getElementById('s3-force-destroy').checked;
+  const preMain = document.getElementById('s3-preview-main-tf');
+  const preVars = document.getElementById('s3-preview-tfvars');
+  preMain.textContent = 'Generating preview...';
+  preVars.textContent = 'Generating preview...';
+  try {
+    const res = await fetch('/api/s3/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bucketName: bucketName || 'my-bucket', region, versioningEnabled, blockPublicAccess, encryptionAlgorithm, forceDestroy }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Preview failed');
+    preMain.textContent = data.mainTf;
+    preVars.textContent = data.tfVarsJson;
+  } catch (err) {
+    preMain.textContent = `Error: ${err.message}`;
+    preVars.textContent = '';
+  }
+}
+
+// ===== EC2 DEPLOY =====
+async function deployEC2Instance() {
+  if (isDeploying) return;
+  if (!validateEC2Form()) return;
+  const name = document.getElementById('instance-name').value.trim();
+  const awsProfile = document.getElementById('aws-profile').value;
+  const region = document.getElementById('aws-region').value;
+  const instanceType = document.getElementById('instance-type').value;
+  const os = document.getElementById('os-image').value;
+  const volumeSize = document.getElementById('disk-number').value;
+  const ports = document.getElementById('allowed-ports').value.trim();
+  const userData = document.getElementById('user-data').value;
+  let amiId = '';
+  if (os === 'custom') amiId = document.getElementById('custom-ami-id').value.trim();
+  else if (OS_AMI_MAP[os]) amiId = OS_AMI_MAP[os][region];
+  if (!amiId) { alert('Failed to resolve AMI ID for region ' + region); return; }
+  setDeployingState(true);
+  startLogStream(name);
+  try {
+    const res = await fetch('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ports, awsProfile, userData }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Provision failed');
+    document.querySelector('#svc-panel-ec2 [data-tab="ec2-deployments"]').click();
+    document.getElementById('instance-name').value = '';
+    document.getElementById('custom-ami-id').value = '';
+    document.getElementById('user-data').value = '';
+    document.getElementById('userdata-summary').textContent = 'No user data configured';
+    document.getElementById('disk-slider').value = 30;
+    document.getElementById('disk-number').value = 30;
+    updateEC2Summary();
+    fetchDeployments();
+  } catch (err) {
+    appendLogLine(`[ERROR] Deployment Trigger Error: ${err.message}`);
+    setDeployingState(false);
+  }
+}
+
+// ===== VPC CREATE =====
+async function createVpc() {
+  if (!validateVpcForm()) return;
+  const vpcName = document.getElementById('vpc-name').value.trim();
+  const awsProfile = document.getElementById('vpc-profile').value;
+  const region = document.getElementById('vpc-region').value;
+  const cidrBlock = document.getElementById('vpc-cidr').value;
+  const publicSubnetCount = document.getElementById('vpc-public-subnets').value;
+  const privateSubnetCount = document.getElementById('vpc-private-subnets').value;
+  const enableIgw = document.getElementById('vpc-enable-igw').checked;
+  const enableNat = document.getElementById('vpc-enable-nat').checked;
+  const enableDnsHostnames = document.getElementById('vpc-dns-hostnames').checked;
+  const btn = document.getElementById('btn-vpc-action');
+  const btnText = document.getElementById('btn-vpc-text');
+  btn.disabled = true;
+  btnText.innerHTML = `<svg class="spinning" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Creating VPC…`;
+  startLogStream(vpcName);
+  try {
+    const res = await fetch('/api/vpc/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ vpcName, region, cidrBlock, publicSubnetCount, privateSubnetCount, enableIgw, enableNat, enableDnsHostnames, awsProfile }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'VPC creation failed');
+    document.querySelector('#svc-panel-vpc [data-tab="vpc-list"]').click();
+    fetchVpcs();
+  } catch (err) {
+    appendLogLine(`[ERROR] VPC Create Error: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = '🌐 Create VPC';
+  }
+}
+
+// ===== S3 CREATE =====
+async function createS3Bucket() {
+  if (!validateS3Form()) return;
+  const bucketName = document.getElementById('s3-name').value.trim();
+  const awsProfile = document.getElementById('s3-profile').value;
+  const region = document.getElementById('s3-region').value;
+  const versioningEnabled = document.getElementById('s3-versioning').checked;
+  const blockPublicAccess = document.getElementById('s3-block-public').checked;
+  const encryptionAlgorithm = document.getElementById('s3-encryption').value;
+  const forceDestroy = document.getElementById('s3-force-destroy').checked;
+  const btn = document.getElementById('btn-s3-action');
+  const btnText = document.getElementById('btn-s3-text');
+  btn.disabled = true;
+  btnText.innerHTML = `<svg class="spinning" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Creating Bucket…`;
+  startLogStream(bucketName);
+  try {
+    const res = await fetch('/api/s3/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bucketName, region, versioningEnabled, blockPublicAccess, encryptionAlgorithm, forceDestroy, awsProfile }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'S3 creation failed');
+    document.querySelector('#svc-panel-s3 [data-tab="s3-list"]').click();
+    fetchS3Buckets();
+  } catch (err) {
+    appendLogLine(`[ERROR] S3 Create Error: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = '🪣 Create S3 Bucket';
+  }
+}
+
+// ===== EC2 STATE =====
+function setDeployingState(deploying) {
+  isDeploying = deploying;
+  const btn = document.getElementById('btn-provision-instance');
+  const btnText = document.getElementById('btn-provision-text');
+  const dot = document.getElementById('system-status-dot');
+  const statusText = document.getElementById('system-status-text');
+  if (deploying) {
+    btn.disabled = true;
+    btnText.innerHTML = `<svg class="spinning" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Provisioning…`;
+    dot.className = 'status-dot deploying';
+    statusText.textContent = 'Deploying…';
+  } else {
+    btn.disabled = false;
+    btnText.textContent = '🚀\u00a0 Preview Configuration';
+    updateHeaderStatus();
+  }
+}
+
+function updateHeaderStatus() {
+  const dot = document.getElementById('system-status-dot');
+  const statusText = document.getElementById('system-status-text');
+  if (isDeploying) { dot.className = 'status-dot deploying'; statusText.textContent = 'Deploying\u2026'; return; }
+  const creating = activeDeployments.find(d => d.status === 'creating') || activeVpcs.find(v => v.status === 'creating') || activeS3Buckets.find(b => b.status === 'creating') || activeDistributions.find(d => d.status === 'creating');
+  if (creating) { dot.className = 'status-dot deploying'; statusText.textContent = 'Creating\u2026'; return; }
+  const running = activeDeployments.filter(d => d.status === 'active').length + activeVpcs.filter(v => v.status === 'active').length + activeS3Buckets.filter(b => b.status === 'active').length + activeDistributions.filter(d => d.status === 'active').length;
+  if (running > 0) { dot.className = 'status-dot running'; statusText.textContent = `${running} Resource(s) Active`; }
+  else { dot.className = 'status-dot ready'; statusText.textContent = 'Ready'; }
+}
+
+// ===== EC2 DEPLOYMENTS =====
+async function fetchDeployments() {
+  try {
+    const res = await fetch('/api/deployments');
+    activeDeployments = await res.json();
+    renderDeploymentsList();
+    updateHeaderStatus();
+    updateSSHBanner();
+  } catch (err) { console.error('Error fetching deployments:', err); }
+}
+
+function renderDeploymentsList() {
+  const container = document.getElementById('deployments-list');
+  if (activeDeployments.length === 0) { container.innerHTML = '<div class="empty-state-msg">No active EC2 deployments found.</div>'; return; }
+  container.innerHTML = '';
+  activeDeployments.forEach(dep => {
+    const card = document.createElement('div');
+    card.className = 'deployment-card';
+    const badgeClass = `status-badge ${dep.status === 'active' ? 'active' : dep.status === 'creating' ? 'creating' : dep.status === 'destroying' ? 'destroying' : 'failed'}`;
+    card.innerHTML = `
+      <div class="deployment-header">
+        <span class="deployment-name">${dep.name}</span>
+        <span class="${badgeClass}">${dep.status}</span>
+      </div>
+      <div class="deployment-details-grid">
+        <span class="detail-lbl">Instance ID</span><span class="detail-val">${dep.instanceId || 'N/A'}</span>
+        <span class="detail-lbl">Public IP</span><span class="detail-val">${dep.publicIp !== 'N/A' ? `<a href="http://${dep.publicIp}" target="_blank" style="color:#58a6ff;text-decoration:none;">${dep.publicIp}</a>` : 'N/A'}</span>
+        <span class="detail-lbl">Profile</span><span class="detail-val">${dep.awsProfile || 'default'}</span>
+        <span class="detail-lbl">Region</span><span class="detail-val">${dep.region}</span>
+        <span class="detail-lbl">Type</span><span class="detail-val">${dep.instanceType}</span>
+        <span class="detail-lbl">Disk</span><span class="detail-val">${dep.volumeSize} GB</span>
+        <span class="detail-lbl">Ports</span><span class="detail-val">${dep.ports}</span>
+      </div>
+      <div class="deployment-actions-bar">
+        <button type="button" class="ec2-btn-outline" onclick="startLogStream('${dep.name}')">View Logs</button>
+        ${dep.status !== 'destroying' ? `<button type="button" class="ec2-btn-danger" onclick="triggerEC2Destroy('${dep.name}')">Destroy</button>` : ''}
+      </div>`;
+    container.appendChild(card);
+  });
+}
+
+async function triggerEC2Destroy(name) {
+  if (!confirm(`Are you sure you want to permanently delete instance "${name}"? This cannot be undone.`)) return;
+  document.querySelector('#svc-panel-ec2 [data-tab="ec2-deployments"]').click();
+  startLogStream(name);
+  try {
+    const res = await fetch('/api/destroy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Destroy failed');
+    fetchDeployments();
+  } catch (err) { appendLogLine(`[ERROR] Destroy Error: ${err.message}`); }
+}
+
+// ===== VPC LIST =====
+async function fetchVpcs() {
+  try {
+    const res = await fetch('/api/vpcs');
+    activeVpcs = await res.json();
+    renderVpcList();
+    updateHeaderStatus();
+  } catch (err) { console.error('Error fetching VPCs:', err); }
+}
+
+function renderVpcList() {
+  const container = document.getElementById('vpc-resources-list');
+  if (activeVpcs.length === 0) { container.innerHTML = '<div class="empty-state-msg">No VPC networks found.</div>'; return; }
+  container.innerHTML = '';
+  activeVpcs.forEach(vpc => {
+    const card = document.createElement('div');
+    card.className = 'deployment-card resource-card-vpc';
+    const badgeClass = `status-badge ${vpc.status === 'active' ? 'active' : vpc.status === 'creating' ? 'creating' : vpc.status === 'destroying' ? 'destroying' : 'failed'}`;
+    const pubSubs = Array.isArray(vpc.publicSubnetIds) ? vpc.publicSubnetIds.length : vpc.publicSubnetCount;
+    const privSubs = Array.isArray(vpc.privateSubnetIds) ? vpc.privateSubnetIds.length : vpc.privateSubnetCount;
+    card.innerHTML = `
+      <div class="deployment-header">
+        <span class="deployment-name">${vpc.name}</span>
+        <span class="${badgeClass}">${vpc.status}</span>
+      </div>
+      <div class="deployment-details-grid">
+        <span class="detail-lbl">VPC ID</span><span class="detail-val">${vpc.vpcId || 'N/A'}</span>
+        <span class="detail-lbl">CIDR</span><span class="detail-val">${vpc.cidrBlock}</span>
+        <span class="detail-lbl">Region</span><span class="detail-val">${vpc.region}</span>
+        <span class="detail-lbl">Profile</span><span class="detail-val">${vpc.awsProfile || 'default'}</span>
+        <span class="detail-lbl">Subnets</span><span class="detail-val">${pubSubs} public, ${privSubs} private</span>
+        <span class="detail-lbl">Gateways</span><span class="detail-val">${[vpc.enableIgw && 'IGW', vpc.enableNat && 'NAT'].filter(Boolean).join(' + ') || 'None'}</span>
+      </div>
+      <div class="deployment-actions-bar">
+        <button type="button" class="ec2-btn-outline" onclick="startLogStream('${vpc.name}')">View Logs</button>
+        ${vpc.status !== 'destroying' ? `<button type="button" class="ec2-btn-danger" onclick="triggerVpcDestroy('${vpc.name}')">Destroy</button>` : ''}
+      </div>`;
+    container.appendChild(card);
+  });
+}
+
+async function triggerVpcDestroy(name) {
+  if (!confirm(`Are you sure you want to destroy VPC "${name}" and all its resources? This cannot be undone.`)) return;
+  document.querySelector('#svc-panel-vpc [data-tab="vpc-list"]').click();
+  startLogStream(name);
+  try {
+    const res = await fetch('/api/vpc/destroy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'VPC destroy failed');
+    fetchVpcs();
+  } catch (err) { appendLogLine(`[ERROR] VPC Destroy Error: ${err.message}`); }
+}
+
+// ===== S3 BUCKET LIST =====
+async function fetchS3Buckets() {
+  try {
+    const res = await fetch('/api/s3-buckets');
+    activeS3Buckets = await res.json();
+    renderS3BucketList();
+    updateHeaderStatus();
+  } catch (err) { console.error('Error fetching S3 buckets:', err); }
+}
+
+function renderS3BucketList() {
+  const container = document.getElementById('s3-resources-list');
+  if (activeS3Buckets.length === 0) { container.innerHTML = '<div class="empty-state-msg">No S3 buckets found.</div>'; return; }
+  container.innerHTML = '';
+  activeS3Buckets.forEach(bucket => {
+    const card = document.createElement('div');
+    card.className = 'deployment-card resource-card-s3';
+    const badgeClass = `status-badge ${bucket.status === 'active' ? 'active' : bucket.status === 'creating' ? 'creating' : bucket.status === 'destroying' ? 'destroying' : 'failed'}`;
+    card.innerHTML = `
+      <div class="deployment-header">
+        <span class="deployment-name">${bucket.name}</span>
+        <span class="${badgeClass}">${bucket.status}</span>
+      </div>
+      <div class="deployment-details-grid">
+        <span class="detail-lbl">ARN</span><span class="detail-val">${bucket.bucketArn || 'N/A'}</span>
+        <span class="detail-lbl">Domain</span><span class="detail-val">${bucket.bucketDomain || 'N/A'}</span>
+        <span class="detail-lbl">Region</span><span class="detail-val">${bucket.region}</span>
+        <span class="detail-lbl">Profile</span><span class="detail-val">${bucket.awsProfile || 'default'}</span>
+        <span class="detail-lbl">Encryption</span><span class="detail-val">${bucket.encryptionAlgorithm || 'AES256'}</span>
+        <span class="detail-lbl">Versioning</span><span class="detail-val">${bucket.versioningEnabled ? 'Enabled' : 'Disabled'}</span>
+        <span class="detail-lbl">Public Access</span><span class="detail-val">${bucket.blockPublicAccess ? 'Blocked' : 'Public'}</span>
+      </div>
+      <div class="deployment-actions-bar">
+        <button type="button" class="ec2-btn-outline" onclick="startLogStream('${bucket.name}')">View Logs</button>
+        ${bucket.status !== 'destroying' ? `<button type="button" class="ec2-btn-danger" onclick="triggerS3Destroy('${bucket.name}')">Destroy</button>` : ''}
+      </div>`;
+    container.appendChild(card);
+  });
+}
+
+async function triggerS3Destroy(name) {
+  if (!confirm(`Are you sure you want to destroy S3 bucket "${name}"? This cannot be undone.`)) return;
+  document.querySelector('#svc-panel-s3 [data-tab="s3-list"]').click();
+  startLogStream(name);
+  try {
+    const res = await fetch('/api/s3/destroy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'S3 destroy failed');
+    fetchS3Buckets();
+  } catch (err) { appendLogLine(`[ERROR] S3 Destroy Error: ${err.message}`); }
+}
+
+// ===== CLOUDFRONT SUMMARY =====
+function updateCfSummary() {
+  const name = document.getElementById('cf-name').value.trim();
+  const bucket = document.getElementById('cf-s3-bucket').value;
+  const priceClass = document.getElementById('cf-price-class').value;
+  const protocol = document.getElementById('cf-protocol-policy').value;
+  const defaultTtl = document.getElementById('cf-default-ttl').value;
+  const compress = document.getElementById('cf-compress').checked;
+  document.getElementById('cf-summary-name').textContent = name || '\u2014';
+  document.getElementById('cf-summary-bucket').textContent = bucket || '\u2014';
+  document.getElementById('cf-summary-price').textContent = priceClass;
+  const pMap = { 'redirect-to-https': 'Redirect HTTP \u2192 HTTPS', 'https-only': 'HTTPS Only', 'allow-all': 'HTTP & HTTPS' };
+  document.getElementById('cf-summary-protocol').textContent = pMap[protocol] || protocol;
+  const ttlSec = parseInt(defaultTtl, 10);
+  let ttlLabel = `${ttlSec}s`;
+  if (ttlSec >= 86400) ttlLabel = `${ttlSec}s (${(ttlSec/86400).toFixed(1)}d)`;
+  else if (ttlSec >= 3600) ttlLabel = `${ttlSec}s (${(ttlSec/3600).toFixed(1)}h)`;
+  document.getElementById('cf-summary-ttl').textContent = ttlLabel;
+  document.getElementById('cf-summary-compress').textContent = compress ? 'Enabled \u2713' : 'Disabled';
+}
+
+// ===== S3 BUCKET OPTIONS FOR CF =====
+async function fetchS3BucketOptions() {
+  const sel = document.getElementById('cf-s3-bucket');
+  try {
+    const res = await fetch('/api/s3-bucket-names');
+    const buckets = await res.json();
+    sel.innerHTML = '<option value="">\u2014 Select or enter bucket name \u2014</option>';
+    buckets.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b.name;
+      opt.textContent = `${b.name} (${b.region}) [${b.status}]`;
+      if (b.status !== 'active') opt.style.color = '#8b949e';
+      sel.appendChild(opt);
+    });
+    // Optionally add a manual input option
+    const manualOpt = document.createElement('option');
+    manualOpt.value = '__manual__';
+    manualOpt.textContent = '\u2192 Enter bucket name manually...';
+    sel.appendChild(manualOpt);
+  } catch (e) {
+    sel.innerHTML = '<option value="">Error loading buckets</option>';
+  }
+  // Handle manual input
+  sel.onchange = () => {
+    document.getElementById('err-cf-s3-bucket').style.display = 'none';
+    const manualInput = document.getElementById('cf-bucket-manual-input');
+    if (sel.value === '__manual__') {
+      if (!manualInput) {
+        const inp = document.createElement('input');
+        inp.type = 'text';
+        inp.id = 'cf-bucket-manual-input';
+        inp.className = 'ec2-input';
+        inp.placeholder = 'my-existing-bucket-name';
+        inp.style.marginTop = '8px';
+        inp.addEventListener('input', updateCfSummary);
+        sel.parentNode.appendChild(inp);
+      }
+    } else {
+      const existing = document.getElementById('cf-bucket-manual-input');
+      if (existing) existing.remove();
+    }
+    updateCfSummary();
+  };
+  updateCfSummary();
+}
+
+// ===== CF VALIDATION =====
+function validateCfForm() {
+  const name = document.getElementById('cf-name').value.trim();
+  const nameErr = document.getElementById('err-cf-name');
+  nameErr.style.display = 'none';
+  document.getElementById('cf-name').classList.remove('err');
+  if (!name) { nameErr.textContent = 'Distribution name is required'; nameErr.style.display = 'block'; document.getElementById('cf-name').classList.add('err'); return false; }
+  if (!/^[a-zA-Z0-9-]+$/.test(name)) { nameErr.textContent = 'Name must be alphanumeric and dashes only'; nameErr.style.display = 'block'; document.getElementById('cf-name').classList.add('err'); return false; }
+  const bucketSel = document.getElementById('cf-s3-bucket').value;
+  const manualInput = document.getElementById('cf-bucket-manual-input');
+  const bucketVal = bucketSel === '__manual__' ? (manualInput ? manualInput.value.trim() : '') : bucketSel;
+  const bucketErr = document.getElementById('err-cf-s3-bucket');
+  bucketErr.style.display = 'none';
+  if (!bucketVal) { bucketErr.textContent = 'Please select or enter an S3 bucket name'; bucketErr.style.display = 'block'; return false; }
+  return true;
+}
+
+// ===== CF PREVIEW =====
+async function fetchCfPreview() {
+  const distributionName = document.getElementById('cf-name').value.trim();
+  const bucketSel = document.getElementById('cf-s3-bucket').value;
+  const manualInput = document.getElementById('cf-bucket-manual-input');
+  const s3BucketName = bucketSel === '__manual__' ? (manualInput ? manualInput.value.trim() : '') : bucketSel;
+  const priceClass = document.getElementById('cf-price-class').value;
+  const httpProtocolPolicy = document.getElementById('cf-protocol-policy').value;
+  const defaultTtl = document.getElementById('cf-default-ttl').value;
+  const minTtl = document.getElementById('cf-min-ttl').value;
+  const maxTtl = document.getElementById('cf-max-ttl').value;
+  const originPath = document.getElementById('cf-origin-path').value.trim();
+  const compress = document.getElementById('cf-compress').checked;
+  const defaultRootObject = document.getElementById('cf-root-object').value.trim();
+  const preMain = document.getElementById('cf-preview-main-tf');
+  const preVars = document.getElementById('cf-preview-tfvars');
+  preMain.textContent = 'Generating preview...';
+  preVars.textContent = 'Generating preview...';
+  try {
+    const res = await fetch('/api/cf/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ distributionName: distributionName || 'my-cdn', s3BucketName: s3BucketName || 'my-bucket', priceClass, httpProtocolPolicy, defaultTtl, minTtl, maxTtl, originPath, compress, defaultRootObject }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Preview failed');
+    preMain.textContent = data.mainTf;
+    preVars.textContent = data.tfVarsJson;
+  } catch (err) {
+    preMain.textContent = `Error: ${err.message}`;
+    preVars.textContent = '';
+  }
+}
+
+// ===== CF CREATE =====
+async function createCfDistribution() {
+  if (!validateCfForm()) return;
+  const distributionName = document.getElementById('cf-name').value.trim();
+  const awsProfile = document.getElementById('cf-profile').value;
+  const bucketSel = document.getElementById('cf-s3-bucket').value;
+  const manualInput = document.getElementById('cf-bucket-manual-input');
+  const s3BucketName = bucketSel === '__manual__' ? (manualInput ? manualInput.value.trim() : '') : bucketSel;
+  const priceClass = document.getElementById('cf-price-class').value;
+  const httpProtocolPolicy = document.getElementById('cf-protocol-policy').value;
+  const defaultTtl = document.getElementById('cf-default-ttl').value;
+  const minTtl = document.getElementById('cf-min-ttl').value;
+  const maxTtl = document.getElementById('cf-max-ttl').value;
+  const originPath = document.getElementById('cf-origin-path').value.trim();
+  const compress = document.getElementById('cf-compress').checked;
+  const defaultRootObject = document.getElementById('cf-root-object').value.trim();
+  const btn = document.getElementById('btn-cf-action');
+  const btnText = document.getElementById('btn-cf-text');
+  btn.disabled = true;
+  btnText.innerHTML = `<svg class="spinning" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 11-6.219-8.56"/></svg> Creating Distribution\u2026`;
+  startLogStream(distributionName);
+  try {
+    const res = await fetch('/api/cf/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ distributionName, s3BucketName, awsProfile, priceClass, httpProtocolPolicy, defaultTtl, minTtl, maxTtl, originPath, compress, defaultRootObject }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'CloudFront creation failed');
+    document.querySelector('#svc-panel-cf [data-tab="cf-list"]').click();
+    fetchDistributions();
+  } catch (err) {
+    appendLogLine(`[ERROR] CloudFront Create Error: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btnText.textContent = '\u2601\ufe0f Create Distribution';
+  }
+}
+
+// ===== CF LIST =====
+async function fetchDistributions() {
+  try {
+    const res = await fetch('/api/distributions');
+    activeDistributions = await res.json();
+    renderCfList();
+    updateHeaderStatus();
+  } catch (err) { console.error('Error fetching distributions:', err); }
+}
+
+function renderCfList() {
+  const container = document.getElementById('cf-resources-list');
+  if (activeDistributions.length === 0) { container.innerHTML = '<div class="empty-state-msg">No CloudFront distributions found.</div>'; return; }
+  container.innerHTML = '';
+  activeDistributions.forEach(dist => {
+    const card = document.createElement('div');
+    card.className = 'deployment-card resource-card-cf';
+    const badgeClass = `status-badge ${dist.status === 'active' ? 'active' : dist.status === 'creating' ? 'creating' : dist.status === 'destroying' ? 'destroying' : 'failed'}`;
+    const domainLink = dist.domainName !== 'N/A' ? `<a href="https://${dist.domainName}" target="_blank" style="color:#a371f7;text-decoration:none;">${dist.domainName}</a>` : 'N/A';
+    const priceMap = { PriceClass_100: 'US+EU', PriceClass_200: 'US+EU+Asia', PriceClass_All: 'All Edges' };
+    card.innerHTML = `
+      <div class="deployment-header">
+        <span class="deployment-name">${dist.name}</span>
+        <span class="${badgeClass}">${dist.status}</span>
+      </div>
+      <div class="deployment-details-grid">
+        <span class="detail-lbl">Distribution ID</span><span class="detail-val">${dist.distributionId || 'N/A'}</span>
+        <span class="detail-lbl">CloudFront Domain</span><span class="detail-val" style="word-break:break-all;">${domainLink}</span>
+        <span class="detail-lbl">S3 Origin</span><span class="detail-val">${dist.s3BucketName}</span>
+        <span class="detail-lbl">Profile</span><span class="detail-val">${dist.awsProfile || 'default'}</span>
+        <span class="detail-lbl">Price Class</span><span class="detail-val">${priceMap[dist.priceClass] || dist.priceClass}</span>
+        <span class="detail-lbl">Protocol</span><span class="detail-val">${dist.httpProtocolPolicy}</span>
+        <span class="detail-lbl">Root Object</span><span class="detail-val">${dist.defaultRootObject}</span>
+        <span class="detail-lbl">Compression</span><span class="detail-val">${dist.compress ? 'Enabled' : 'Disabled'}</span>
+      </div>
+      ${dist.distributionUrl !== 'N/A' ? `
+      <div class="cf-url-banner">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#a371f7" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+        <a href="${dist.distributionUrl}" target="_blank" class="cf-url-link">${dist.distributionUrl}</a>
+      </div>` : ''}
+      <div class="deployment-actions-bar">
+        <button type="button" class="ec2-btn-outline" onclick="startLogStream('${dist.name}')">View Logs</button>
+        ${dist.status !== 'destroying' ? `<button type="button" class="ec2-btn-danger" onclick="triggerCfDestroy('${dist.name}')">Destroy</button>` : ''}
+      </div>`;
+    container.appendChild(card);
+  });
+}
+
+async function triggerCfDestroy(name) {
+  if (!confirm(`Are you sure you want to destroy CloudFront distribution "${name}"? This cannot be undone.`)) return;
+  document.querySelector('#svc-panel-cf [data-tab="cf-list"]').click();
+  startLogStream(name);
+  try {
+    const res = await fetch('/api/cf/destroy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'CF destroy failed');
+    fetchDistributions();
+  } catch (err) { appendLogLine(`[ERROR] CF Destroy Error: ${err.message}`); }
+}
+
+// ===== LOG STREAM =====
+function startLogStream(name) {
+  if (eventSource) eventSource.close();
+  currentLogTarget = name;
+  const terminal = document.getElementById('log-terminal-container');
+  terminal.innerHTML = `<div class="log-line log-line-info">=== Connecting to log stream for "${name}" ===</div>`;
+  const badge = document.getElementById('log-status-badge');
+  badge.textContent = 'LIVE';
+  badge.style.background = '#e3b341';
+  badge.style.color = '#000';
+  badge.style.display = 'inline-block';
+  eventSource = new EventSource(`/api/stream-logs?name=${encodeURIComponent(name)}`);
+  eventSource.onmessage = event => {
+    const data = JSON.parse(event.data);
+    appendLogLine(data.text);
+  };
+  eventSource.onerror = () => {
+    appendLogLine('=== Log stream disconnected ===', 'info');
+    badge.textContent = 'COMPLETE';
+    badge.style.background = '#238636';
+    badge.style.color = '#fff';
+    eventSource.close();
+    setDeployingState(false);
+    fetchDeployments();
+    fetchVpcs();
+    fetchS3Buckets();
+    fetchDistributions();
+    updateSSHBanner();
+    updateVpcBanner();
+    updateS3Banner();
+    updateCfBanner();
+  };
+}
+
+function appendLogLine(text) {
+  const terminal = document.getElementById('log-terminal-container');
+  const cursor = terminal.querySelector('.log-cursor');
+  if (cursor) cursor.remove();
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  if (text.includes('[ERROR]') || text.toLowerCase().includes('error') || text.includes('FAILED')) line.classList.add('log-line-error');
+  else if (text.includes('[OK]') || text.includes('Successfully') || text.includes('complete') || text.includes('COMPLETE')) line.classList.add('log-line-success');
+  else if (text.includes('===')) line.classList.add('log-line-header');
+  else if (text.includes('[INFO]') || text.includes('Initializing') || text.includes('Applying')) line.classList.add('log-line-info');
+  else line.classList.add('log-line-default');
+  line.textContent = text;
+  terminal.appendChild(line);
+  const badge = document.getElementById('log-status-badge');
+  if (badge.textContent === 'LIVE') {
+    const blinker = document.createElement('span');
+    blinker.className = 'log-cursor';
+    terminal.appendChild(blinker);
+  }
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+function updateSSHBanner() {
+  const banner = document.getElementById('ssh-connect-banner');
+  if (!currentLogTarget) { banner.style.display = 'none'; return; }
+  const dep = activeDeployments.find(d => d.name === currentLogTarget);
+  if (dep && dep.status === 'active' && dep.publicIp !== 'N/A') {
+    document.getElementById('ssh-command-snippet').textContent = `ssh -i ~/.ssh/${dep.name}.pem ubuntu@${dep.publicIp}`;
+    document.getElementById('ssh-download-key-btn').href = `/api/download-key/${dep.name}`;
+    banner.style.display = 'block';
+    document.getElementById('vpc-created-banner').style.display = 'none';
+    document.getElementById('s3-created-banner').style.display = 'none';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function updateVpcBanner() {
+  const banner = document.getElementById('vpc-created-banner');
+  if (!currentLogTarget) { banner.style.display = 'none'; return; }
+  const vpc = activeVpcs.find(v => v.name === currentLogTarget);
+  if (vpc && vpc.status === 'active' && vpc.vpcId !== 'N/A') {
+    document.getElementById('vpc-id-snippet').textContent = `VPC ID: ${vpc.vpcId} | Region: ${vpc.region}`;
+    banner.style.display = 'block';
+    document.getElementById('ssh-connect-banner').style.display = 'none';
+    document.getElementById('s3-created-banner').style.display = 'none';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function updateS3Banner() {
+  const banner = document.getElementById('s3-created-banner');
+  if (!currentLogTarget) { banner.style.display = 'none'; return; }
+  const bucket = activeS3Buckets.find(b => b.name === currentLogTarget);
+  if (bucket && bucket.status === 'active' && bucket.bucketArn !== 'N/A') {
+    document.getElementById('s3-arn-snippet').textContent = bucket.bucketArn;
+    banner.style.display = 'block';
+    document.getElementById('ssh-connect-banner').style.display = 'none';
+    document.getElementById('vpc-created-banner').style.display = 'none';
+    document.getElementById('cf-created-banner').style.display = 'none';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function updateCfBanner() {
+  const banner = document.getElementById('cf-created-banner');
+  if (!currentLogTarget) { banner.style.display = 'none'; return; }
+  const dist = activeDistributions.find(d => d.name === currentLogTarget);
+  if (dist && dist.status === 'active' && dist.domainName !== 'N/A') {
+    document.getElementById('cf-dist-id-snippet').textContent = dist.distributionId;
+    document.getElementById('cf-domain-snippet').textContent = dist.domainName;
+    const urlBtn = document.getElementById('cf-open-url-btn');
+    urlBtn.href = dist.distributionUrl;
+    urlBtn.textContent = `\uD83D\uDD17 Open: ${dist.distributionUrl}`;
+    banner.style.display = 'block';
+    document.getElementById('ssh-connect-banner').style.display = 'none';
+    document.getElementById('vpc-created-banner').style.display = 'none';
+    document.getElementById('s3-created-banner').style.display = 'none';
+  } else {
+    banner.style.display = 'none';
+  }
+}
