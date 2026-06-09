@@ -184,6 +184,16 @@ variable "allowed_ports" {
   default = [22]
 }
 
+variable "vpc_id" {
+  type    = string
+  default = ""
+}
+
+variable "subnet_id" {
+  type    = string
+  default = ""
+}
+
 resource "tls_private_key" "key" {
   algorithm = "RSA"
   rsa_bits  = 4096
@@ -197,6 +207,7 @@ resource "aws_key_pair" "key" {
 resource "aws_security_group" "sg" {
   name        = "\${var.instance_name}-sg"
   description = "Security group for \${var.instance_name}"
+  vpc_id      = var.vpc_id != "" ? var.vpc_id : null
 
   ingress {
     description = "SSH access"
@@ -233,6 +244,7 @@ resource "aws_instance" "instance" {
   instance_type          = var.instance_type
   key_name               = aws_key_pair.key.key_name
   vpc_security_group_ids = [aws_security_group.sg.id]
+  subnet_id              = var.subnet_id != "" ? var.subnet_id : null
   user_data              = var.user_data != "" ? var.user_data : null
 
   root_block_device {
@@ -620,7 +632,7 @@ app.get('/api/stream-logs', (req, res) => {
 
 // 2.5 Preview deployment configuration
 app.post('/api/preview', (req, res) => {
-  const { name, region, instanceType, amiId, volumeSize, ports, userData } = req.body;
+  const { name, region, instanceType, amiId, volumeSize, ports, userData, vpcId, subnetId } = req.body;
 
   if (!name || !region || !instanceType || !amiId) {
     return res.status(400).json({ error: 'Missing required parameters' });
@@ -647,7 +659,9 @@ app.post('/api/preview', (req, res) => {
     ami_id: amiId,
     user_data: userData || '',
     volume_size: parseInt(volumeSize, 10) || 30,
-    allowed_ports: allowedPorts
+    allowed_ports: allowedPorts,
+    vpc_id: vpcId || '',
+    subnet_id: subnetId || ''
   };
 
   res.json({
@@ -658,7 +672,7 @@ app.post('/api/preview', (req, res) => {
 
 // 3. Trigger new deployment
 app.post('/api/deploy', (req, res) => {
-  const { name, region, instanceType, amiId, volumeSize, ports, awsProfile, userData } = req.body;
+  const { name, region, instanceType, amiId, volumeSize, ports, awsProfile, userData, vpcId, subnetId } = req.body;
 
   if (!name || !region || !instanceType || !amiId) {
     return res.status(400).json({ error: 'Missing required parameters' });
@@ -698,7 +712,9 @@ app.post('/api/deploy', (req, res) => {
     ami_id: amiId,
     user_data: userData || "",
     volume_size: parseInt(volumeSize, 10) || 30,
-    allowed_ports: allowedPorts
+    allowed_ports: allowedPorts,
+    vpc_id: vpcId || '',
+    subnet_id: subnetId || ''
   };
   fs.writeFileSync(path.join(targetDir, 'terraform.tfvars.json'), JSON.stringify(tfVars, null, 2));
 
@@ -710,6 +726,8 @@ app.post('/api/deploy', (req, res) => {
     amiId,
     volumeSize: tfVars.volume_size,
     ports: allowedPorts.join(','),
+    vpcId: vpcId || '',
+    subnetId: subnetId || '',
     status: 'creating',
     publicIp: 'N/A',
     instanceId: 'N/A',

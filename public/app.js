@@ -188,10 +188,15 @@ function initEC2UI() {
   });
 
   nameInput.addEventListener('input', () => { document.getElementById('err-instance-name').style.display = 'none'; updateEC2Summary(); });
-  regionSelect.addEventListener('change', updateEC2Summary);
+  regionSelect.addEventListener('change', () => { updateVpcOptionsForEC2(); updateEC2Summary(); });
   instanceTypeSelect.addEventListener('change', updateEC2Summary);
   portsInput.addEventListener('input', updateEC2Summary);
   profileSelect.addEventListener('change', updateEC2Summary);
+
+  const ec2VpcSelect = document.getElementById('ec2-vpc');
+  if (ec2VpcSelect) ec2VpcSelect.addEventListener('change', () => { updateSubnetOptionsForEC2(); updateEC2Summary(); });
+  const ec2SubnetSelect = document.getElementById('ec2-subnet');
+  if (ec2SubnetSelect) ec2SubnetSelect.addEventListener('change', updateEC2Summary);
 
   const btnToggleUserdata = document.getElementById('btn-toggle-userdata');
   const userdataTextarea = document.getElementById('user-data');
@@ -425,6 +430,9 @@ function updateEC2Summary() {
   const os = document.getElementById('os-image').value;
   const disk = document.getElementById('disk-number').value;
   const ports = document.getElementById('allowed-ports').value.trim();
+  const vpcName = document.getElementById('ec2-vpc').value;
+  const subnetId = document.getElementById('ec2-subnet').value;
+
   const typeObj = INSTANCE_TYPES.find(t => t.value === type);
   document.getElementById('instance-price-info').textContent = typeObj ? `~${typeObj.price} on-demand` : '';
   const osObj = OS_IMAGES.find(o => o.value === os);
@@ -439,6 +447,17 @@ function updateEC2Summary() {
   document.getElementById('summary-os').textContent = osObj ? osObj.label : 'Custom';
   document.getElementById('summary-disk').textContent = `${disk} GB (gp3)`;
   document.getElementById('summary-ports').textContent = ports || '—';
+
+  // VPC & Subnet Summary update
+  const selectedVpc = activeVpcs.find(v => v.name === vpcName);
+  if (selectedVpc) {
+    document.getElementById('summary-vpc').textContent = `${selectedVpc.name} (${selectedVpc.vpcId})`;
+    document.getElementById('summary-subnet-row').style.display = 'flex';
+    document.getElementById('summary-subnet').textContent = subnetId || '—';
+  } else {
+    document.getElementById('summary-vpc').textContent = 'Default VPC';
+    document.getElementById('summary-subnet-row').style.display = 'none';
+  }
 }
 
 // ===== VPC SUMMARY =====
@@ -527,6 +546,11 @@ async function fetchEC2Preview() {
   const volumeSize = document.getElementById('disk-number').value;
   const ports = document.getElementById('allowed-ports').value.trim();
   const userData = document.getElementById('user-data').value;
+  const vpcName = document.getElementById('ec2-vpc').value;
+  const selectedVpc = activeVpcs.find(v => v.name === vpcName);
+  const vpcId = selectedVpc ? selectedVpc.vpcId : '';
+  const subnetId = document.getElementById('ec2-subnet').value || '';
+
   let amiId = '';
   if (os === 'custom') amiId = document.getElementById('custom-ami-id').value.trim() || 'ami-custom-input';
   else if (OS_AMI_MAP[os]) amiId = OS_AMI_MAP[os][region];
@@ -535,7 +559,7 @@ async function fetchEC2Preview() {
   preMain.textContent = 'Generating preview...';
   preVars.textContent = 'Generating preview...';
   try {
-    const res = await fetch('/api/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ports, userData }) });
+    const res = await fetch('/api/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ports, userData, vpcId, subnetId }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Preview failed');
     preMain.textContent = data.mainTf;
@@ -608,6 +632,11 @@ async function deployEC2Instance() {
   const volumeSize = document.getElementById('disk-number').value;
   const ports = document.getElementById('allowed-ports').value.trim();
   const userData = document.getElementById('user-data').value;
+  const vpcName = document.getElementById('ec2-vpc').value;
+  const selectedVpc = activeVpcs.find(v => v.name === vpcName);
+  const vpcId = selectedVpc ? selectedVpc.vpcId : '';
+  const subnetId = document.getElementById('ec2-subnet').value || '';
+
   let amiId = '';
   if (os === 'custom') amiId = document.getElementById('custom-ami-id').value.trim();
   else if (OS_AMI_MAP[os]) amiId = OS_AMI_MAP[os][region];
@@ -615,7 +644,7 @@ async function deployEC2Instance() {
   setDeployingState(true);
   startLogStream(name);
   try {
-    const res = await fetch('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ports, awsProfile, userData }) });
+    const res = await fetch('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ports, awsProfile, userData, vpcId, subnetId }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Provision failed');
     document.querySelector('#svc-panel-ec2 [data-tab="ec2-deployments"]').click();
@@ -625,6 +654,13 @@ async function deployEC2Instance() {
     document.getElementById('userdata-summary').textContent = 'No user data configured';
     document.getElementById('disk-slider').value = 30;
     document.getElementById('disk-number').value = 30;
+    
+    // Reset VPC Selection
+    if (document.getElementById('ec2-vpc')) {
+      document.getElementById('ec2-vpc').value = '';
+      updateSubnetOptionsForEC2();
+    }
+
     updateEC2Summary();
     fetchDeployments();
   } catch (err) {
@@ -782,6 +818,7 @@ async function fetchVpcs() {
     const res = await fetch('/api/vpcs');
     activeVpcs = await res.json();
     renderVpcList();
+    updateVpcOptionsForEC2();
     updateHeaderStatus();
   } catch (err) { console.error('Error fetching VPCs:', err); }
 }
@@ -1206,5 +1243,92 @@ function updateCfBanner() {
     document.getElementById('s3-created-banner').style.display = 'none';
   } else {
     banner.style.display = 'none';
+  }
+}
+
+// ===== VPC & SUBNET INTEGRATION FOR EC2 =====
+function updateVpcOptionsForEC2() {
+  const vpcSelect = document.getElementById('ec2-vpc');
+  if (!vpcSelect) return;
+  const selectedRegion = document.getElementById('aws-region').value;
+  const previouslySelected = vpcSelect.value;
+
+  vpcSelect.innerHTML = '<option value="">Default VPC</option>';
+
+  const filtered = activeVpcs.filter(vpc => vpc.status === 'active' && vpc.region === selectedRegion);
+  filtered.forEach(vpc => {
+    const opt = document.createElement('option');
+    opt.value = vpc.name;
+    opt.textContent = `${vpc.name} (${vpc.vpcId})`;
+    vpcSelect.appendChild(opt);
+  });
+
+  // Keep selection if still valid
+  if (filtered.find(v => v.name === previouslySelected)) {
+    vpcSelect.value = previouslySelected;
+  } else {
+    vpcSelect.value = '';
+  }
+  updateSubnetOptionsForEC2();
+}
+
+function updateSubnetOptionsForEC2() {
+  const vpcSelect = document.getElementById('ec2-vpc');
+  const subnetSelect = document.getElementById('ec2-subnet');
+  const container = document.getElementById('ec2-subnet-container');
+  if (!vpcSelect || !subnetSelect || !container) return;
+
+  const vpcName = vpcSelect.value;
+  if (!vpcName) {
+    container.style.display = 'none';
+    subnetSelect.innerHTML = '<option value="">Default Subnet</option>';
+    subnetSelect.value = '';
+    return;
+  }
+
+  const vpc = activeVpcs.find(v => v.name === vpcName);
+  if (!vpc) {
+    container.style.display = 'none';
+    subnetSelect.innerHTML = '<option value="">Default Subnet</option>';
+    subnetSelect.value = '';
+    return;
+  }
+
+  container.style.display = 'block';
+  const previouslySelected = subnetSelect.value;
+  subnetSelect.innerHTML = '';
+
+  const subnets = [];
+  if (Array.isArray(vpc.publicSubnetIds)) {
+    vpc.publicSubnetIds.forEach((id, idx) => {
+      subnets.push({ value: id, label: `Public Subnet ${idx + 1} (${id})` });
+    });
+  }
+  if (Array.isArray(vpc.privateSubnetIds)) {
+    vpc.privateSubnetIds.forEach((id, idx) => {
+      subnets.push({ value: id, label: `Private Subnet ${idx + 1} (${id})` });
+    });
+  }
+
+  if (subnets.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'No Subnets Available (Apply VPC first)';
+    subnetSelect.appendChild(opt);
+    subnetSelect.value = '';
+    return;
+  }
+
+  subnets.forEach(sub => {
+    const opt = document.createElement('option');
+    opt.value = sub.value;
+    opt.textContent = sub.label;
+    subnetSelect.appendChild(opt);
+  });
+
+  if (subnets.find(s => s.value === previouslySelected)) {
+    subnetSelect.value = previouslySelected;
+  } else {
+    subnetSelect.value = subnets[0].value;
   }
 }
