@@ -11,21 +11,121 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="ec2-panel-container">
-    <!-- Header -->
-    <header class="ec2-header">
-      <div class="ec2-header-brand">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f78166" stroke-width="2" aria-hidden="true">
+  <!-- Auth Screens -->
+  <div id="auth-container" class="auth-wrapper" style="display: flex;">
+    <div class="auth-box">
+      <div class="auth-header-brand">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f78166" stroke-width="2" aria-hidden="true">
           <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
         </svg>
-        <span class="ec2-brand-title">AWS Cloud Control Panel</span>
-        <span class="ec2-version-badge">v2.0</span>
+        <span class="auth-brand-title">AWS Cloud Control Panel</span>
       </div>
-      <div class="ec2-header-status">
-        <span class="status-dot" id="system-status-dot"></span>
-        <span id="system-status-text">Ready</span>
+
+      <!-- Login Card -->
+      <div id="login-card" class="auth-card">
+        <h2 class="auth-title">Log In to Portal</h2>
+        <p class="auth-subtitle">Enter your email and password to access the panel</p>
+        
+        <div class="auth-alert error" id="login-error" style="display: none;"></div>
+        <div class="auth-alert success" id="login-success" style="display: none;"></div>
+
+        <form id="login-form">
+          <div class="ec2-form-group">
+            <label class="ec2-label">Email Address</label>
+            <input type="email" id="login-email" class="ec2-input" placeholder="name@domain.com" required>
+          </div>
+          <div class="ec2-form-group" style="margin-bottom: 6px;">
+            <label class="ec2-label">Password</label>
+            <input type="password" id="login-password" class="ec2-input" placeholder="••••••••" required>
+          </div>
+          <div class="auth-forgot-link-container">
+            <a href="#" id="link-forgot-password" class="auth-link">Forgot Password?</a>
+          </div>
+          <button type="submit" class="ec2-btn-primary auth-submit-btn">Login</button>
+        </form>
+
+        <p class="auth-switch-text">
+          Don't have an account? <a href="#" id="link-to-signup" class="auth-link">Create Account</a>
+        </p>
       </div>
-    </header>
+
+      <!-- Sign Up Card -->
+      <div id="signup-card" class="auth-card" style="display: none;">
+        <h2 class="auth-title">Create Account</h2>
+        <p class="auth-subtitle">Register to manage your cloud infrastructure</p>
+
+        <div class="auth-alert error" id="signup-error" style="display: none;"></div>
+        <div class="auth-alert success" id="signup-success" style="display: none;"></div>
+
+        <form id="signup-form">
+          <div class="ec2-form-group">
+            <label class="ec2-label">Full Name</label>
+            <input type="text" id="signup-name" class="ec2-input" placeholder="John Doe" required>
+          </div>
+          <div class="ec2-form-group">
+            <label class="ec2-label">Email Address</label>
+            <input type="email" id="signup-email" class="ec2-input" placeholder="name@domain.com" required>
+          </div>
+          <div class="ec2-form-group" style="margin-bottom: 6px;">
+            <label class="ec2-label">Password</label>
+            <input type="password" id="signup-password" class="ec2-input" placeholder="••••••••" required>
+            <!-- Strength Indicator -->
+            <div class="pwd-strength-container">
+              <div class="pwd-strength-bar" id="pwd-strength-bar"></div>
+            </div>
+            <span class="pwd-strength-text" id="pwd-strength-text">Password strength: Weak</span>
+          </div>
+          <div class="ec2-form-group">
+            <label class="ec2-label">Confirm Password</label>
+            <input type="password" id="signup-confirm-password" class="ec2-input" placeholder="••••••••" required>
+          </div>
+          <button type="submit" class="ec2-btn-primary auth-submit-btn">Create Account</button>
+        </form>
+
+        <p class="auth-switch-text">
+          Already have an account? <a href="#" id="link-to-login" class="auth-link">Log In</a>
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Portal Container -->
+  <div id="portal-container" style="display: none;">
+    <div class="ec2-panel-container">
+      <!-- Header -->
+      <header class="ec2-header">
+        <div class="ec2-header-brand">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#f78166" stroke-width="2" aria-hidden="true">
+            <rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/>
+          </svg>
+          <span class="ec2-brand-title">AWS Cloud Control Panel</span>
+          <span class="ec2-version-badge">v2.0</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;">
+          <div class="ec2-header-status">
+            <span class="status-dot" id="system-status-dot"></span>
+            <span id="system-status-text">Ready</span>
+          </div>
+          
+          <!-- User Profile Dropdown -->
+          <div class="profile-container" id="profile-container">
+            <button type="button" class="profile-avatar-btn" id="btn-profile-avatar" title="View Profile">
+              <span id="profile-initials">—</span>
+            </button>
+            <div class="profile-dropdown-menu" id="profile-dropdown-menu" style="display: none;">
+              <div class="profile-dropdown-header">
+                <strong id="profile-menu-name">—</strong>
+                <span id="profile-menu-email">—</span>
+              </div>
+              <div class="profile-dropdown-divider"></div>
+              <button type="button" class="profile-dropdown-item" id="btn-logout">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:8px;"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </header>
 
     <!-- Service Switcher Nav -->
     <nav class="service-nav" aria-label="AWS Service Selector">
@@ -44,6 +144,10 @@
       <button type="button" class="svc-btn" data-service="cf" id="svc-btn-cf">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
         CloudFront CDN
+      </button>
+      <button type="button" class="svc-btn" data-service="users" id="svc-btn-users" style="display: none;">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Users Management
       </button>
     </nav>
 
@@ -650,6 +754,45 @@
             </button>
           </div>
         </div><!-- end svc-panel-cf -->
+
+        <!-- ===== USER MANAGEMENT SERVICE PANEL (ADMIN ONLY) ===== -->
+        <div class="service-panel" id="svc-panel-users">
+          <div class="ec2-tabs-bar">
+            <button type="button" class="ec2-tab active" data-tab="users-list">Registered Users</button>
+          </div>
+
+          <div class="ec2-tab-contents-container">
+            <!-- USERS LIST TAB -->
+            <div class="ec2-tab-content active" id="tab-content-users-list">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+                <h3 class="section-heading" style="margin:0;">Registered Control Panel Users</h3>
+                <button type="button" class="ec2-btn-secondary" id="btn-refresh-users" style="width:auto; padding:6px 12px; font-size:11px; margin:0;">🔄 Refresh</button>
+              </div>
+              
+              <div id="users-error" class="auth-alert error" style="display: none; margin-bottom: 12px;"></div>
+              <div id="users-success" class="auth-alert success" style="display: none; margin-bottom: 12px;"></div>
+              
+              <div class="users-table-container">
+                <table class="users-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Role</th>
+                      <th>Status</th>
+                      <th style="text-align:right;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="users-table-body">
+                    <tr>
+                      <td colspan="5" style="padding:20px; text-align:center; color:#8b949e;">Loading users list...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div><!-- end svc-panel-users -->
 
       </div><!-- end ec2-left-col -->
 

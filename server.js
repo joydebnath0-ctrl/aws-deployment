@@ -4,9 +4,12 @@ const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const os = require('os');
+const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 
 const app = express();
 const PORT = process.env.PORT || 80;
+
 
 app.use(cors());
 app.use(express.json());
@@ -55,6 +58,462 @@ if (!fs.existsSync(CF_DEPLOYMENTS_DIR)) {
 if (!fs.existsSync(CF_DB_FILE)) {
   fs.writeFileSync(CF_DB_FILE, JSON.stringify([]));
 }
+
+const USERS_FILE = path.join(BASE_DIR, 'users.json');
+const SESSIONS_FILE = path.join(BASE_DIR, 'sessions.json');
+if (!fs.existsSync(USERS_FILE)) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify([]));
+}
+if (!fs.existsSync(SESSIONS_FILE)) {
+  fs.writeFileSync(SESSIONS_FILE, JSON.stringify([]));
+}
+
+function readUsersDB() {
+  try { return JSON.parse(fs.readFileSync(USERS_FILE, 'utf8')); } catch (e) { return []; }
+}
+function writeUsersDB(data) {
+  fs.writeFileSync(USERS_FILE, JSON.stringify(data, null, 2));
+}
+function readSessionsDB() {
+  try { return JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8')); } catch (e) { return []; }
+}
+function writeSessionsDB(data) {
+  fs.writeFileSync(SESSIONS_FILE, JSON.stringify(data, null, 2));
+}
+
+// Migration: Ensure Joy Debnath is Admin & isVerified is true by default
+(function migrateUsers() {
+  try {
+    const users = readUsersDB();
+    let updated = false;
+    users.forEach(u => {
+      if (u.email.toLowerCase() === 'joy.debnath@webskitters.com') {
+        if (!u.isAdmin) {
+          u.isAdmin = true;
+          updated = true;
+        }
+      }
+      if (u.isVerified === undefined) {
+        u.isVerified = true;
+        updated = true;
+      }
+    });
+    if (updated) {
+      writeUsersDB(users);
+      console.log('User database migrated: Admin privileges granted to Joy Debnath and verification flags verified.');
+    }
+  } catch (err) {
+    console.error('Migration error:', err);
+  }
+})();
+
+
+function hashPassword(password, salt) {
+  return crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+}
+function generateSalt() {
+  return crypto.randomBytes(16).toString('hex');
+}
+
+// Mail transporter configuration & mock logging fallback
+let transporter = null;
+if (process.env.SMTP_HOST) {
+  transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST,
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: process.env.SMTP_SECURE === 'true',
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS
+    }
+  });
+}
+
+const EMAILS_LOG_FILE = path.join(BASE_DIR, 'sent_emails.log');
+
+async function sendVerificationEmail(name, email, token, host) {
+  const verifyLink = `http://${host}/api/auth/verify?token=${token}`;
+  const subject = 'Verify your email address — AWS Control Panel';
+  const textContent = `Hi ${name},\n\nPlease verify your email address by clicking on the link below:\n${verifyLink}\n\nThanks,\nAWS Control Panel Admin`;
+  
+  const htmlContent = `
+    <div style="font-family: 'Inter', sans-serif; background: #0d1117; color: #c9d1d9; padding: 40px; text-align: center; border-radius: 8px; border: 1px solid #30363d; max-width: 500px; margin: 0 auto;">
+      <h2 style="color: #f78166; margin-bottom: 20px;">AWS Cloud Control Panel</h2>
+      <p style="font-size: 15px; color: #8b949e; text-align: left;">Hi <strong>${name}</strong>,</p>
+      <p style="font-size: 14px; line-height: 1.6; text-align: left; color: #c9d1d9;">Thank you for registering! Please verify your email address by clicking the button below:</p>
+      <div style="margin: 30px 0;">
+        <a href="${verifyLink}" style="background: #238636; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; display: inline-block; font-size: 14px;">Verify Email Address</a>
+      </div>
+      <p style="font-size: 12px; color: #8b949e; text-align: left;">If the button doesn't work, copy and paste this link in your browser:</p>
+      <p style="font-size: 12px; font-family: monospace; word-break: break-all; color: #58a6ff; text-align: left; background: #161b22; padding: 10px; border-radius: 4px; border: 1px solid #21262d;">${verifyLink}</p>
+    </div>
+  `;
+
+  if (transporter) {
+    try {
+      await transporter.sendMail({
+        from: process.env.SMTP_FROM || '"AWS Control Panel" <noreply@controlpanel.local>',
+        to: email,
+        subject: subject,
+        text: textContent,
+        html: htmlContent
+      });
+      console.log(`Verification email sent successfully to ${email}`);
+      return;
+    } catch (err) {
+      console.error(`Failed to send real verification email to ${email}, falling back to mock:`, err);
+    }
+  }
+
+  // Fallback to Mock Log File
+  const logEntry = `\n[${new Date().toISOString()}] =========================================\n` +
+                   `TO: ${email} (${name})\n` +
+                   `SUBJECT: ${subject}\n` +
+                   `LINK: ${verifyLink}\n` +
+                   `==================================================================\n`;
+  fs.appendFileSync(EMAILS_LOG_FILE, logEntry, 'utf8');
+  console.log(`[MOCK EMAIL] Verification link generated for ${email}: ${verifyLink}`);
+}
+
+function renderVerificationHtml(success, message) {
+  const title = success ? 'Verification Successful' : 'Verification Failed';
+  const color = success ? '#3fb950' : '#f85149';
+  const icon = success 
+    ? `<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>`
+    : `<svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="${color}" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>`;
+
+  return `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>${title} — AWS Control Panel</title>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+      <style>
+        body {
+          margin: 0;
+          padding: 0;
+          height: 100vh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: radial-gradient(circle at center, #161b22 0%, #0d1117 100%);
+          font-family: 'Inter', sans-serif;
+          color: #c9d1d9;
+        }
+        .container {
+          width: 100%;
+          max-width: 400px;
+          background: rgba(22, 27, 34, 0.8);
+          border: 1px solid #30363d;
+          border-radius: 12px;
+          padding: 40px 32px;
+          text-align: center;
+          box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+          backdrop-filter: blur(12px);
+        }
+        .icon {
+          margin-bottom: 24px;
+        }
+        h2 {
+          font-size: 22px;
+          font-weight: 600;
+          color: #f0f6fc;
+          margin: 0 0 12px;
+        }
+        p {
+          font-size: 14px;
+          color: #8b949e;
+          line-height: 1.6;
+          margin: 0 0 32px;
+        }
+        .btn {
+          display: inline-block;
+          background: #238636;
+          color: #ffffff;
+          padding: 12px 24px;
+          font-size: 14px;
+          font-weight: 600;
+          text-decoration: none;
+          border-radius: 6px;
+          transition: background-color 0.15s;
+        }
+        .btn:hover {
+          background-color: #2ea043;
+        }
+        .btn-error {
+          background: #21262d;
+          border: 1px solid #30363d;
+          color: #c9d1d9;
+        }
+        .btn-error:hover {
+          background-color: #30363d;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="icon">${icon}</div>
+        <h2>${title}</h2>
+        <p>${message}</p>
+        <a href="/" class="btn ${success ? '' : 'btn-error'}">${success ? 'Proceed to Login' : 'Back to Login'}</a>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+// Auth Middleware
+function requireAuth(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Unauthorized. Missing token.' });
+  }
+  const token = authHeader.substring(7);
+  const sessions = readSessionsDB();
+  const session = sessions.find(s => s.token === token);
+  if (!session || new Date(session.expiresAt) < new Date()) {
+    if (session) {
+      writeSessionsDB(sessions.filter(s => s.token !== token));
+    }
+    return res.status(401).json({ error: 'Unauthorized. Invalid or expired token.' });
+  }
+  req.userEmail = session.email;
+  next();
+}
+
+// Apply Auth Middleware to all /api/ routes except auth and streams
+app.use('/api', (req, res, next) => {
+  if (req.path === '/auth/login' || req.path === '/auth/signup' || req.path === '/stream-logs' || req.path === '/auth/verify') {
+    return next();
+  }
+  requireAuth(req, res, next);
+});
+
+// === AUTH ENDPOINTS ===
+
+// 1. Sign Up
+app.post('/api/auth/signup', (req, res) => {
+  const { name, email, password } = req.body;
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'All fields are required' });
+  }
+
+  // Email format validation
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format' });
+  }
+
+  const users = readUsersDB();
+  const lowerEmail = email.toLowerCase().trim();
+  if (users.find(u => u.email.toLowerCase() === lowerEmail)) {
+    return res.status(400).json({ error: 'Email ID already registered' });
+  }
+
+  const salt = generateSalt();
+  const passwordHash = hashPassword(password, salt);
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+
+  const newUser = {
+    name: name.trim(),
+    email: lowerEmail,
+    salt,
+    passwordHash,
+    isVerified: false,
+    verificationToken,
+    createdAt: new Date().toISOString()
+  };
+
+  users.push(newUser);
+  writeUsersDB(users);
+
+  // Send verification email asynchronously
+  sendVerificationEmail(newUser.name, newUser.email, verificationToken, req.headers.host)
+    .catch(err => console.error('Error sending verification mail:', err));
+
+  const verifyLink = `http://${req.headers.host}/api/auth/verify?token=${verificationToken}`;
+  res.json({
+    message: 'Registration successful! Please check your email to verify your account.',
+    verificationLink: verifyLink
+  });
+});
+
+// 2. Login
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Email and password are required' });
+  }
+
+  const users = readUsersDB();
+  const lowerEmail = email.toLowerCase().trim();
+  const user = users.find(u => u.email.toLowerCase() === lowerEmail);
+
+  if (!user) {
+    return res.status(400).json({ error: 'Invalid email or password' });
+  }
+
+  const hash = hashPassword(password, user.salt);
+  if (hash !== user.passwordHash) {
+    return res.status(400).json({ error: 'Invalid email or password' });
+  }
+
+  // Check email verification status
+  if (user.isVerified === false) {
+    return res.status(400).json({ error: 'Please verify your email address before logging in.' });
+  }
+
+  // Create session token
+  const token = crypto.randomBytes(32).toString('hex');
+  const sessions = readSessionsDB();
+  const expiresAt = new Date();
+  expiresAt.setHours(expiresAt.getHours() + 24); // 24 hours
+
+  sessions.push({
+    token,
+    email: user.email,
+    expiresAt: expiresAt.toISOString()
+  });
+  writeSessionsDB(sessions);
+
+  res.json({
+    message: 'Login successful',
+    token,
+    user: {
+      name: user.name,
+      email: user.email,
+      isAdmin: !!user.isAdmin
+    }
+  });
+});
+
+// 3. Logout
+app.post('/api/auth/logout', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    const sessions = readSessionsDB();
+    writeSessionsDB(sessions.filter(s => s.token !== token));
+  }
+  res.json({ message: 'Logged out successfully' });
+});
+
+// 4. Me (Verify Session)
+app.get('/api/auth/me', (req, res) => {
+  const users = readUsersDB();
+  const user = users.find(u => u.email === req.userEmail);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+  res.json({
+    name: user.name,
+    email: user.email,
+    isAdmin: !!user.isAdmin
+  });
+});
+
+// 5. Verification Endpoint
+app.get('/api/auth/verify', (req, res) => {
+  const { token } = req.query;
+  if (!token) {
+    return res.send(renderVerificationHtml(false, 'Token is missing.'));
+  }
+
+  const users = readUsersDB();
+  const userIndex = users.findIndex(u => u.verificationToken === token);
+
+  if (userIndex === -1) {
+    return res.send(renderVerificationHtml(false, 'Invalid or expired verification token.'));
+  }
+
+  users[userIndex].isVerified = true;
+  delete users[userIndex].verificationToken; // remove token once verified
+
+  writeUsersDB(users);
+
+  res.send(renderVerificationHtml(true, 'Your email has been successfully verified! You can now log in to the portal.'));
+});
+
+// === USER MANAGEMENT ENDPOINTS (ADMIN ONLY) ===
+
+// Middleware to require Admin privileges
+function requireAdmin(req, res, next) {
+  const users = readUsersDB();
+  const user = users.find(u => u.email.toLowerCase() === req.userEmail.toLowerCase());
+  if (!user || !user.isAdmin) {
+    return res.status(403).json({ error: 'Forbidden. Admin privileges required.' });
+  }
+  next();
+}
+
+// 1. Get all users
+app.get('/api/users', requireAdmin, (req, res) => {
+  const users = readUsersDB();
+  const sanitizedUsers = users.map(u => ({
+    name: u.name,
+    email: u.email,
+    isAdmin: !!u.isAdmin,
+    isVerified: !!u.isVerified,
+    createdAt: u.createdAt
+  }));
+  res.json(sanitizedUsers);
+});
+
+// 2. Update user status (verify / toggle admin)
+app.put('/api/users/:email', requireAdmin, (req, res) => {
+  const targetEmail = req.params.email.toLowerCase().trim();
+  const { isVerified, isAdmin } = req.body;
+
+  if (targetEmail === req.userEmail.toLowerCase().trim()) {
+    if (isAdmin === false) {
+      return res.status(400).json({ error: 'You cannot demote yourself from Admin status.' });
+    }
+  }
+
+  const users = readUsersDB();
+  const userIndex = users.findIndex(u => u.email.toLowerCase() === targetEmail);
+
+  if (userIndex === -1) {
+    return res.status(404).json({ error: 'User not found.' });
+  }
+
+  if (isVerified !== undefined) {
+    users[userIndex].isVerified = !!isVerified;
+  }
+  if (isAdmin !== undefined) {
+    users[userIndex].isAdmin = !!isAdmin;
+  }
+
+  writeUsersDB(users);
+  res.json({ message: 'User updated successfully' });
+});
+
+// 3. Delete user
+app.delete('/api/users/:email', requireAdmin, (req, res) => {
+  const targetEmail = req.params.email.toLowerCase().trim();
+
+  if (targetEmail === req.userEmail.toLowerCase().trim()) {
+    return res.status(400).json({ error: 'You cannot delete your own admin account.' });
+  }
+
+  const users = readUsersDB();
+  const filteredUsers = users.filter(u => u.email.toLowerCase() !== targetEmail);
+
+  if (users.length === filteredUsers.length) {
+    return res.status(404).json({ error: 'User not found.' });
+  }
+
+  writeUsersDB(filteredUsers);
+
+  // Clear active sessions for this user to force immediate logout
+  const sessions = readSessionsDB();
+  const filteredSessions = sessions.filter(s => s.email.toLowerCase() !== targetEmail);
+  writeSessionsDB(filteredSessions);
+
+  res.json({ message: 'User deleted successfully' });
+});
 
 // Helper to read DB
 function readDB() {

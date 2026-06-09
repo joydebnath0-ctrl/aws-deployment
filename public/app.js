@@ -1,3 +1,38 @@
+// ===== AUTH PRE-FLIGHT INTERCEPTOR =====
+const originalFetch = window.fetch;
+window.fetch = function(url, options = {}) {
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    options.headers = options.headers || {};
+    if (options.headers instanceof Headers) {
+      options.headers.set('Authorization', `Bearer ${token}`);
+    } else if (Array.isArray(options.headers)) {
+      const authHeaderIndex = options.headers.findIndex(([key]) => key.toLowerCase() === 'authorization');
+      if (authHeaderIndex !== -1) {
+        options.headers[authHeaderIndex][1] = `Bearer ${token}`;
+      } else {
+        options.headers.push(['Authorization', `Bearer ${token}`]);
+      }
+    } else {
+      options.headers['Authorization'] = `Bearer ${token}`;
+    }
+  }
+  return originalFetch(url, options).then(response => {
+    if (response.status === 401 && !url.includes('/api/auth/login') && !url.includes('/api/auth/signup')) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      const portalContainer = document.getElementById('portal-container');
+      if (portalContainer) portalContainer.style.display = 'none';
+      const authContainer = document.getElementById('auth-container');
+      if (authContainer) {
+        authContainer.style.display = 'flex';
+      }
+      showCard('login-card');
+    }
+    return response;
+  });
+};
+
 // ===== STATIC DATA =====
 const REGIONS = [
   { value: "us-east-1", label: "us-east-1 (N. Virginia)" },
@@ -55,20 +90,8 @@ let currentService = 'ec2';
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
-  initServiceNav();
-  initEC2UI();
-  initVpcUI();
-  initS3UI();
-  initCfUI();
-  fetchAwsProfiles();
-  fetchDeployments();
-  fetchVpcs();
-  fetchS3Buckets();
-  fetchDistributions();
-  setInterval(fetchDeployments, 8000);
-  setInterval(fetchVpcs, 10000);
-  setInterval(fetchS3Buckets, 10000);
-  setInterval(fetchDistributions, 12000);
+  initAuth();
+  checkSession();
 });
 
 // ===== SERVICE NAV =====
@@ -87,6 +110,8 @@ function initServiceNav() {
       document.getElementById('cf-created-banner').style.display = 'none';
       // Reload S3 bucket list for CloudFront selector when switching to CF
       if (svc === 'cf') fetchS3BucketOptions();
+      // Fetch users list when switching to User Management
+      if (svc === 'users') fetchUsers();
     });
   });
 }
@@ -1331,4 +1356,499 @@ function updateSubnetOptionsForEC2() {
   } else {
     subnetSelect.value = subnets[0].value;
   }
+}
+
+// ===== AUTHENTICATION SYSTEMS =====
+
+function showCard(cardId) {
+  const loginCard = document.getElementById('login-card');
+  const signupCard = document.getElementById('signup-card');
+  if (loginCard) loginCard.style.display = cardId === 'login-card' ? 'block' : 'none';
+  if (signupCard) signupCard.style.display = cardId === 'signup-card' ? 'block' : 'none';
+  
+  const alerts = document.querySelectorAll('.auth-alert');
+  alerts.forEach(alert => {
+    alert.style.display = 'none';
+    alert.textContent = '';
+  });
+}
+
+function checkPasswordStrength(password) {
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (/[A-Z]/.test(password)) score++;
+  if (/[a-z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+
+  const bar = document.getElementById('pwd-strength-bar');
+  const text = document.getElementById('pwd-strength-text');
+  
+  if (!bar || !text) return;
+
+  if (password.length === 0) {
+    bar.style.width = '0%';
+    bar.className = 'pwd-strength-bar';
+    text.textContent = 'Password strength: Empty';
+    return;
+  }
+
+  if (score <= 2) {
+    bar.style.width = '33%';
+    bar.className = 'pwd-strength-bar weak';
+    text.textContent = 'Password strength: Weak';
+  } else if (score <= 4) {
+    bar.style.width = '66%';
+    bar.className = 'pwd-strength-bar medium';
+    text.textContent = 'Password strength: Medium';
+  } else {
+    bar.style.width = '100%';
+    bar.className = 'pwd-strength-bar strong';
+    text.textContent = 'Password strength: Strong';
+  }
+}
+
+function validateEmail(email) {
+  const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return re.test(String(email).toLowerCase());
+}
+
+function checkConfirmPassword() {
+  const pwd = document.getElementById('signup-password').value;
+  const cpwd = document.getElementById('signup-confirm-password').value;
+  const confirmInput = document.getElementById('signup-confirm-password');
+  
+  if (confirmInput) {
+    if (cpwd && pwd !== cpwd) {
+      confirmInput.setCustomValidity("Passwords do not match");
+    } else {
+      confirmInput.setCustomValidity("");
+    }
+  }
+}
+
+function initAuth() {
+  const loginForm = document.getElementById('login-form');
+  const signupForm = document.getElementById('signup-form');
+  const linkToSignup = document.getElementById('link-to-signup');
+  const linkToLogin = document.getElementById('link-to-login');
+  const linkForgotPwd = document.getElementById('link-forgot-password');
+  
+  const signupPassword = document.getElementById('signup-password');
+  const signupConfirmPassword = document.getElementById('signup-confirm-password');
+
+  if (linkToSignup) {
+    linkToSignup.addEventListener('click', (e) => {
+      e.preventDefault();
+      showCard('signup-card');
+    });
+  }
+  if (linkToLogin) {
+    linkToLogin.addEventListener('click', (e) => {
+      e.preventDefault();
+      showCard('login-card');
+    });
+  }
+
+  if (linkForgotPwd) {
+    linkForgotPwd.addEventListener('click', (e) => {
+      e.preventDefault();
+      alert('Password reset instructions: Please contact the system administrator to reset your password.');
+    });
+  }
+
+  if (signupPassword) {
+    signupPassword.addEventListener('input', (e) => {
+      checkPasswordStrength(e.target.value);
+      checkConfirmPassword();
+    });
+  }
+  if (signupConfirmPassword) {
+    signupConfirmPassword.addEventListener('input', () => {
+      checkConfirmPassword();
+    });
+  }
+
+  if (signupForm) {
+    signupForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('signup-name').value.trim();
+      const email = document.getElementById('signup-email').value.trim();
+      const password = document.getElementById('signup-password').value;
+      const confirmPassword = document.getElementById('signup-confirm-password').value;
+      const errorDiv = document.getElementById('signup-error');
+      const successDiv = document.getElementById('signup-success');
+
+      errorDiv.style.display = 'none';
+      successDiv.style.display = 'none';
+
+      if (!validateEmail(email)) {
+        errorDiv.textContent = 'Invalid email format';
+        errorDiv.style.display = 'block';
+        return;
+      }
+
+      if (password !== confirmPassword) {
+        errorDiv.textContent = 'Passwords do not match';
+        errorDiv.style.display = 'block';
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/auth/signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Registration failed');
+        }
+        
+        successDiv.innerHTML = `${data.message}<br><br><span style="display:block;border-top:1px solid rgba(56,139,253,0.3);padding-top:10px;margin-top:10px;"><strong style="color:#58a6ff;">[Testing Mode] Click here to verify:</strong><br><a href="${data.verificationLink}" target="_blank" style="color:#79c0ff;text-decoration:underline;word-break:break-all;font-weight:600;display:inline-block;margin-top:5px;">${data.verificationLink}</a></span>`;
+        successDiv.style.display = 'block';
+        signupForm.reset();
+        checkPasswordStrength('');
+      } catch (err) {
+        errorDiv.textContent = err.message;
+        errorDiv.style.display = 'block';
+      }
+    });
+  }
+
+  if (loginForm) {
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      const errorDiv = document.getElementById('login-error');
+      const successDiv = document.getElementById('login-success');
+
+      errorDiv.style.display = 'none';
+      successDiv.style.display = 'none';
+
+      try {
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Login failed');
+        }
+
+        localStorage.setItem('auth_token', data.token);
+        localStorage.setItem('auth_user', JSON.stringify(data.user));
+
+        successDiv.textContent = 'Login successful! Loading control panel...';
+        successDiv.style.display = 'block';
+        loginForm.reset();
+
+        setTimeout(() => {
+          successDiv.style.display = 'none';
+          checkSession();
+        }, 800);
+      } catch (err) {
+        errorDiv.textContent = err.message;
+        errorDiv.style.display = 'block';
+      }
+    });
+  }
+
+  const logoutBtn = document.getElementById('btn-logout');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+      } catch (e) {
+        console.error('Logout request failed', e);
+      }
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('auth_user');
+      location.reload();
+    });
+  }
+
+  const avatarBtn = document.getElementById('btn-profile-avatar');
+  const dropdownMenu = document.getElementById('profile-dropdown-menu');
+  if (avatarBtn && dropdownMenu) {
+    avatarBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isHidden = dropdownMenu.style.display === 'none';
+      dropdownMenu.style.display = isHidden ? 'block' : 'none';
+    });
+    
+    document.addEventListener('click', () => {
+      dropdownMenu.style.display = 'none';
+    });
+  }
+}
+
+let dashboardInitialized = false;
+
+function initializeDashboard(user) {
+  if (dashboardInitialized) return;
+  dashboardInitialized = true;
+  
+  initServiceNav();
+  initEC2UI();
+  initVpcUI();
+  initS3UI();
+  initCfUI();
+  fetchAwsProfiles();
+  fetchDeployments();
+  fetchVpcs();
+  fetchS3Buckets();
+  fetchDistributions();
+
+  if (user && user.isAdmin) {
+    initUsersUI();
+    fetchUsers();
+  }
+  
+  setInterval(fetchDeployments, 8000);
+  setInterval(fetchVpcs, 10000);
+  setInterval(fetchS3Buckets, 10000);
+  setInterval(fetchDistributions, 12000);
+}
+
+async function checkSession() {
+  const token = localStorage.getItem('auth_token');
+  const authContainer = document.getElementById('auth-container');
+  const portalContainer = document.getElementById('portal-container');
+
+  if (!token) {
+    if (portalContainer) portalContainer.style.display = 'none';
+    if (authContainer) authContainer.style.display = 'flex';
+    showCard('login-card');
+    return;
+  }
+
+  try {
+    const response = await fetch('/api/auth/me');
+    if (!response.ok) {
+      throw new Error('Session validation failed');
+    }
+    const user = await response.json();
+
+    const initialsSpan = document.getElementById('profile-initials');
+    const menuName = document.getElementById('profile-menu-name');
+    const menuEmail = document.getElementById('profile-menu-email');
+
+    if (initialsSpan) {
+      const parts = user.name.trim().split(/\s+/);
+      const initials = parts.map(p => p[0]).join('').substring(0, 2).toUpperCase();
+      initialsSpan.textContent = initials || 'U';
+    }
+    if (menuName) menuName.textContent = user.name;
+    if (menuEmail) menuEmail.textContent = user.email;
+
+    const usersBtn = document.getElementById('svc-btn-users');
+    if (usersBtn) {
+      if (user.isAdmin) {
+        usersBtn.style.display = 'inline-flex';
+      } else {
+        usersBtn.style.display = 'none';
+      }
+    }
+
+    if (authContainer) authContainer.style.display = 'none';
+    if (portalContainer) portalContainer.style.display = 'block';
+
+    initializeDashboard(user);
+  } catch (err) {
+    console.error('Session verify error:', err);
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('auth_user');
+    if (portalContainer) portalContainer.style.display = 'none';
+    if (authContainer) authContainer.style.display = 'flex';
+    showCard('login-card');
+  }
+}
+
+// ===== USERS MANAGEMENT UI =====
+let usersInitialized = false;
+
+function initUsersUI() {
+  if (usersInitialized) return;
+  usersInitialized = true;
+
+  const btnRefresh = document.getElementById('btn-refresh-users');
+  if (btnRefresh) {
+    btnRefresh.addEventListener('click', () => {
+      fetchUsers();
+    });
+  }
+}
+
+async function fetchUsers() {
+  const tableBody = document.getElementById('users-table-body');
+  const errorDiv = document.getElementById('users-error');
+  const successDiv = document.getElementById('users-success');
+
+  if (errorDiv) errorDiv.style.display = 'none';
+  if (successDiv) successDiv.style.display = 'none';
+
+  try {
+    const response = await fetch('/api/users');
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error || 'Failed to fetch users');
+    }
+    const users = await response.json();
+    renderUsersTable(users);
+  } catch (err) {
+    console.error('Error fetching users:', err);
+    if (errorDiv) {
+      errorDiv.textContent = err.message;
+      errorDiv.style.display = 'block';
+    }
+    if (tableBody) {
+      tableBody.innerHTML = `<tr><td colspan="5" style="padding:20px; text-align:center; color:#ff7b72;">Failed to load users: ${err.message}</td></tr>`;
+    }
+  }
+}
+
+function renderUsersTable(users) {
+  const tableBody = document.getElementById('users-table-body');
+  if (!tableBody) return;
+
+  if (users.length === 0) {
+    tableBody.innerHTML = '<tr><td colspan="5" style="padding:20px; text-align:center; color:#8b949e;">No registered users found.</td></tr>';
+    return;
+  }
+
+  const authUser = JSON.parse(localStorage.getItem('auth_user') || '{}');
+  const currentUserEmail = (authUser.email || '').toLowerCase().trim();
+
+  let html = '';
+  users.forEach(user => {
+    const isSelf = user.email.toLowerCase().trim() === currentUserEmail;
+    const roleBadge = user.isAdmin 
+      ? '<span class="badge badge-admin">Admin</span>' 
+      : '<span class="badge badge-user">User</span>';
+      
+    const statusBadge = user.isVerified 
+      ? '<span class="badge badge-verified">Verified</span>' 
+      : '<span class="badge badge-unverified">Pending</span>';
+
+    const verifyBtnText = user.isVerified ? 'Unverify' : 'Verify';
+    const verifyBtnClass = user.isVerified ? 'btn-unverify' : 'btn-verify';
+    const roleBtnText = user.isAdmin ? 'Make User' : 'Make Admin';
+    const roleBtnClass = 'btn-role';
+
+    html += `
+      <tr>
+        <td style="font-weight:500; color:#e2e8f0;">${escapeHtml(user.name)} ${isSelf ? '<span style="font-size:10px; color:#8b949e; font-weight:normal;">(You)</span>' : ''}</td>
+        <td style="font-family:monospace; color:#8b949e;">${escapeHtml(user.email)}</td>
+        <td>${roleBadge}</td>
+        <td>${statusBadge}</td>
+        <td>
+          <div class="users-actions">
+            <button class="btn-action ${verifyBtnClass}" onclick="handleUserVerify('${user.email}', ${!user.isVerified})">${verifyBtnText}</button>
+            <button class="btn-action ${roleBtnClass}" onclick="handleUserAdmin('${user.email}', ${!user.isAdmin})" ${isSelf ? 'disabled' : ''}>${roleBtnText}</button>
+            <button class="btn-action btn-delete" onclick="handleUserDelete('${user.email}')" ${isSelf ? 'disabled' : ''}>Delete</button>
+          </div>
+        </td>
+      </tr>
+    `;
+  });
+
+  tableBody.innerHTML = html;
+}
+
+window.handleUserVerify = async (email, verifyStatus) => {
+  const errorDiv = document.getElementById('users-error');
+  const successDiv = document.getElementById('users-success');
+  if (errorDiv) errorDiv.style.display = 'none';
+  if (successDiv) successDiv.style.display = 'none';
+
+  try {
+    const response = await fetch(`/api/users/${encodeURIComponent(email)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isVerified: verifyStatus })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to update user status');
+
+    if (successDiv) {
+      successDiv.textContent = `Successfully updated verification status for ${email}`;
+      successDiv.style.display = 'block';
+    }
+    fetchUsers();
+  } catch (err) {
+    if (errorDiv) {
+      errorDiv.textContent = err.message;
+      errorDiv.style.display = 'block';
+    }
+  }
+};
+
+window.handleUserAdmin = async (email, adminStatus) => {
+  const errorDiv = document.getElementById('users-error');
+  const successDiv = document.getElementById('users-success');
+  if (errorDiv) errorDiv.style.display = 'none';
+  if (successDiv) successDiv.style.display = 'none';
+
+  try {
+    const response = await fetch(`/api/users/${encodeURIComponent(email)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isAdmin: adminStatus })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to update user role');
+
+    if (successDiv) {
+      successDiv.textContent = `Successfully updated role for ${email}`;
+      successDiv.style.display = 'block';
+    }
+    fetchUsers();
+  } catch (err) {
+    if (errorDiv) {
+      errorDiv.textContent = err.message;
+      errorDiv.style.display = 'block';
+    }
+  }
+};
+
+window.handleUserDelete = async (email) => {
+  if (!confirm(`Are you sure you want to delete the user account for ${email}? This action is permanent and will instantly log them out.`)) {
+    return;
+  }
+
+  const errorDiv = document.getElementById('users-error');
+  const successDiv = document.getElementById('users-success');
+  if (errorDiv) errorDiv.style.display = 'none';
+  if (successDiv) successDiv.style.display = 'none';
+
+  try {
+    const response = await fetch(`/api/users/${encodeURIComponent(email)}`, {
+      method: 'DELETE'
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to delete user');
+
+    if (successDiv) {
+      successDiv.textContent = `Successfully deleted user account ${email}`;
+      successDiv.style.display = 'block';
+    }
+    fetchUsers();
+  } catch (err) {
+    if (errorDiv) {
+      errorDiv.textContent = err.message;
+      errorDiv.style.display = 'block';
+    }
+  }
+};
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
 }
