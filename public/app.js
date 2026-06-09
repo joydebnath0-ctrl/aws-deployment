@@ -1676,9 +1676,15 @@ function initUsersUI() {
 
   const btnRefresh = document.getElementById('btn-refresh-users');
   if (btnRefresh) {
-    btnRefresh.addEventListener('click', () => {
-      fetchUsers();
-    });
+    btnRefresh.addEventListener('click', fetchUsers);
+  }
+
+  const createForm = document.getElementById('create-user-form');
+  if (createForm) {
+    createForm.addEventListener('submit', handleCreateUser);
+    // Default: isVerified checked
+    const verifiedChk = document.getElementById('new-user-is-verified');
+    if (verifiedChk) verifiedChk.checked = true;
   }
 }
 
@@ -1765,7 +1771,7 @@ window.handleUserVerify = async (email, verifyStatus) => {
   if (successDiv) successDiv.style.display = 'none';
 
   try {
-    const response = await fetch(`/api/users/${encodeURIComponent(email)}`, {
+    const response = await fetch(`/api/users/update?email=${encodeURIComponent(email)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isVerified: verifyStatus })
@@ -1774,7 +1780,7 @@ window.handleUserVerify = async (email, verifyStatus) => {
     if (!response.ok) throw new Error(data.error || 'Failed to update user status');
 
     if (successDiv) {
-      successDiv.textContent = `Successfully updated verification status for ${email}`;
+      successDiv.textContent = `✓ Verification status updated for ${email}`;
       successDiv.style.display = 'block';
     }
     fetchUsers();
@@ -1793,7 +1799,7 @@ window.handleUserAdmin = async (email, adminStatus) => {
   if (successDiv) successDiv.style.display = 'none';
 
   try {
-    const response = await fetch(`/api/users/${encodeURIComponent(email)}`, {
+    const response = await fetch(`/api/users/update?email=${encodeURIComponent(email)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isAdmin: adminStatus })
@@ -1802,7 +1808,7 @@ window.handleUserAdmin = async (email, adminStatus) => {
     if (!response.ok) throw new Error(data.error || 'Failed to update user role');
 
     if (successDiv) {
-      successDiv.textContent = `Successfully updated role for ${email}`;
+      successDiv.textContent = `✓ Role updated for ${email}`;
       successDiv.style.display = 'block';
     }
     fetchUsers();
@@ -1815,7 +1821,7 @@ window.handleUserAdmin = async (email, adminStatus) => {
 };
 
 window.handleUserDelete = async (email) => {
-  if (!confirm(`Are you sure you want to delete the user account for ${email}? This action is permanent and will instantly log them out.`)) {
+  if (!confirm(`Delete account for ${email}?\nThis is permanent and logs them out immediately.`)) {
     return;
   }
 
@@ -1825,14 +1831,14 @@ window.handleUserDelete = async (email) => {
   if (successDiv) successDiv.style.display = 'none';
 
   try {
-    const response = await fetch(`/api/users/${encodeURIComponent(email)}`, {
+    const response = await fetch(`/api/users/delete?email=${encodeURIComponent(email)}`, {
       method: 'DELETE'
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to delete user');
 
     if (successDiv) {
-      successDiv.textContent = `Successfully deleted user account ${email}`;
+      successDiv.textContent = `✓ User account deleted: ${email}`;
       successDiv.style.display = 'block';
     }
     fetchUsers();
@@ -1843,6 +1849,44 @@ window.handleUserDelete = async (email) => {
     }
   }
 };
+
+async function handleCreateUser(e) {
+  e.preventDefault();
+  const errorDiv = document.getElementById('create-user-error');
+  const successDiv = document.getElementById('create-user-success');
+  if (errorDiv) errorDiv.style.display = 'none';
+  if (successDiv) successDiv.style.display = 'none';
+
+  const name = document.getElementById('new-user-name').value.trim();
+  const email = document.getElementById('new-user-email').value.trim();
+  const password = document.getElementById('new-user-password').value;
+  const isAdmin = document.getElementById('new-user-is-admin').checked;
+  const isVerified = document.getElementById('new-user-is-verified').checked;
+
+  try {
+    const response = await fetch('/api/users/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, password, isAdmin, isVerified })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Failed to create user');
+
+    if (successDiv) {
+      successDiv.textContent = `✓ ${data.message}`;
+      successDiv.style.display = 'block';
+    }
+    // Reset form, reset defaults
+    document.getElementById('create-user-form').reset();
+    document.getElementById('new-user-is-verified').checked = true;
+    document.getElementById('new-user-is-admin').checked = false;
+  } catch (err) {
+    if (errorDiv) {
+      errorDiv.textContent = err.message;
+      errorDiv.style.display = 'block';
+    }
+  }
+}
 
 function escapeHtml(str) {
   if (!str) return '';

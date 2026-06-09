@@ -759,6 +759,7 @@
         <div class="service-panel" id="svc-panel-users">
           <div class="ec2-tabs-bar">
             <button type="button" class="ec2-tab active" data-tab="users-list">Registered Users</button>
+            <button type="button" class="ec2-tab" data-tab="users-create">Create User</button>
           </div>
 
           <div class="ec2-tab-contents-container">
@@ -790,6 +791,61 @@
                   </tbody>
                 </table>
               </div>
+            </div>
+
+            <!-- CREATE USER TAB -->
+            <div class="ec2-tab-content" id="tab-content-users-create">
+              <h3 class="section-heading">Create New User Account</h3>
+              <p style="font-size:12px; color:#8b949e; margin:0 0 18px; line-height:1.6;">Create a portal account directly. The new user's role and verification status are set immediately — no email verification required.</p>
+
+              <div id="create-user-error" class="auth-alert error" style="display: none; margin-bottom: 12px;"></div>
+              <div id="create-user-success" class="auth-alert success" style="display: none; margin-bottom: 12px;"></div>
+
+              <form id="create-user-form">
+                <div class="ec2-form-group">
+                  <label class="ec2-label">Full Name</label>
+                  <input type="text" id="new-user-name" class="ec2-input" placeholder="John Doe" required>
+                </div>
+                <div class="ec2-form-group">
+                  <label class="ec2-label">Email Address</label>
+                  <input type="email" id="new-user-email" class="ec2-input" placeholder="name@domain.com" required>
+                </div>
+                <div class="ec2-form-group">
+                  <label class="ec2-label">Password</label>
+                  <input type="password" id="new-user-password" class="ec2-input" placeholder="Min 6 characters" required minlength="6">
+                </div>
+
+                <!-- Privilege toggles -->
+                <div style="background:#161b22; border:1px solid #30363d; border-radius:8px; padding:16px; margin-bottom:18px;">
+                  <p style="font-size:11px; color:#8b949e; text-transform:uppercase; letter-spacing:0.05em; font-weight:600; margin:0 0 14px; font-family:'Inter',sans-serif;">Account Privileges</p>
+                  
+                  <div class="toggle-row" style="margin-bottom:12px;">
+                    <div>
+                      <p style="margin:0; font-size:13px; color:#c9d1d9; font-family:'Inter',sans-serif; font-weight:500;">Email Verified</p>
+                      <p style="margin:2px 0 0; font-size:11px; color:#8b949e; font-family:'Inter',sans-serif;">Account is pre-verified and can log in immediately</p>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="new-user-is-verified" checked>
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+
+                  <div class="toggle-row">
+                    <div>
+                      <p style="margin:0; font-size:13px; color:#c9d1d9; font-family:'Inter',sans-serif; font-weight:500;">Admin Role</p>
+                      <p style="margin:2px 0 0; font-size:11px; color:#8b949e; font-family:'Inter',sans-serif;">Grant full admin access including user management</p>
+                    </div>
+                    <label class="toggle-switch">
+                      <input type="checkbox" id="new-user-is-admin">
+                      <span class="toggle-slider"></span>
+                    </label>
+                  </div>
+                </div>
+
+                <button type="submit" class="ec2-btn-primary" style="width:100%; background: linear-gradient(135deg, #a371f7, #7c3aed);">
+                  ➕ &nbsp;Create User Account
+                </button>
+              </form>
             </div>
           </div>
         </div><!-- end svc-panel-users -->

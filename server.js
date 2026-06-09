@@ -462,9 +462,13 @@ app.get('/api/users', requireAdmin, (req, res) => {
 });
 
 // 2. Update user status (verify / toggle admin)
-app.put('/api/users/:email', requireAdmin, (req, res) => {
-  const targetEmail = req.params.email.toLowerCase().trim();
+app.put('/api/users/update', requireAdmin, (req, res) => {
+  const targetEmail = (req.query.email || '').toLowerCase().trim();
   const { isVerified, isAdmin } = req.body;
+
+  if (!targetEmail) {
+    return res.status(400).json({ error: 'Email query parameter is required.' });
+  }
 
   if (targetEmail === req.userEmail.toLowerCase().trim()) {
     if (isAdmin === false) {
@@ -491,8 +495,12 @@ app.put('/api/users/:email', requireAdmin, (req, res) => {
 });
 
 // 3. Delete user
-app.delete('/api/users/:email', requireAdmin, (req, res) => {
-  const targetEmail = req.params.email.toLowerCase().trim();
+app.delete('/api/users/delete', requireAdmin, (req, res) => {
+  const targetEmail = (req.query.email || '').toLowerCase().trim();
+
+  if (!targetEmail) {
+    return res.status(400).json({ error: 'Email query parameter is required.' });
+  }
 
   if (targetEmail === req.userEmail.toLowerCase().trim()) {
     return res.status(400).json({ error: 'You cannot delete your own admin account.' });
@@ -513,6 +521,57 @@ app.delete('/api/users/:email', requireAdmin, (req, res) => {
   writeSessionsDB(filteredSessions);
 
   res.json({ message: 'User deleted successfully' });
+});
+
+// 4. Admin Create User
+app.post('/api/users/create', requireAdmin, (req, res) => {
+  const { name, email, password, isAdmin: makeAdmin, isVerified: setVerified } = req.body;
+
+  if (!name || !email || !password) {
+    return res.status(400).json({ error: 'Name, email, and password are required.' });
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Invalid email format.' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+  }
+
+  const users = readUsersDB();
+  const lowerEmail = email.toLowerCase().trim();
+
+  if (users.find(u => u.email.toLowerCase() === lowerEmail)) {
+    return res.status(400).json({ error: 'Email is already registered.' });
+  }
+
+  const salt = generateSalt();
+  const passwordHash = hashPassword(password, salt);
+
+  const newUser = {
+    name: name.trim(),
+    email: lowerEmail,
+    salt,
+    passwordHash,
+    isVerified: setVerified !== false,  // default to verified for admin-created accounts
+    isAdmin: !!makeAdmin,
+    createdAt: new Date().toISOString()
+  };
+
+  users.push(newUser);
+  writeUsersDB(users);
+
+  res.json({
+    message: `User ${newUser.name} (${newUser.email}) created successfully.`,
+    user: {
+      name: newUser.name,
+      email: newUser.email,
+      isAdmin: newUser.isAdmin,
+      isVerified: newUser.isVerified
+    }
+  });
 });
 
 // Helper to read DB
