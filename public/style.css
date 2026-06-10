@@ -1353,6 +1353,17 @@ textarea.ec2-input {
   color: #ff9e96;
 }
 
+.btn-action.btn-reset-pwd {
+  color: #a371f7;
+  border-color: rgba(163, 113, 247, 0.3);
+}
+
+.btn-action.btn-reset-pwd:hover {
+  background: rgba(163, 113, 247, 0.1);
+  border-color: #a371f7;
+  color: #c0a0ff;
+}
+
 .btn-action:disabled {
   opacity: 0.4;
   cursor: not-allowed;

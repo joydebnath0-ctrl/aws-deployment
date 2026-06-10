@@ -542,7 +542,51 @@ app.delete('/api/users/delete', requireAdmin, (req, res) => {
   res.json({ message: 'User deleted successfully' });
 });
 
-// 4. Admin Create User
+// 4. Change Password
+app.post('/api/users/change-password', (req, res) => {
+  const requesterEmail = req.userEmail.toLowerCase().trim();
+  const targetEmail = (req.body.email || '').toLowerCase().trim();
+  const newPassword = (req.body.newPassword || '').trim();
+
+  if (!targetEmail || !newPassword) {
+    return res.status(400).json({ error: 'Email and new password are required.' });
+  }
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+  }
+
+  const users = readUsersDB();
+  const requester = users.find(u => u.email.toLowerCase() === requesterEmail);
+  if (!requester) return res.status(401).json({ error: 'Unauthorized.' });
+
+  // Non-admin can only target their own email
+  if (!requester.isAdmin) {
+    if (requesterEmail !== targetEmail) {
+      return res.status(403).json({ error: 'You can only change your own password.' });
+    }
+  }
+
+  const targetIndex = users.findIndex(u => u.email.toLowerCase() === targetEmail);
+  if (targetIndex === -1) return res.status(404).json({ error: 'User not found.' });
+
+  const targetUser = users[targetIndex];
+
+  // Extra safety: non-admin cannot change an admin account's password
+  if (!requester.isAdmin && targetUser.isAdmin) {
+    return res.status(403).json({ error: 'You do not have permission to change an admin password.' });
+  }
+
+  // Hash and update
+  const salt = generateSalt();
+  const passwordHash = hashPassword(newPassword, salt);
+  users[targetIndex].salt = salt;
+  users[targetIndex].passwordHash = passwordHash;
+  writeUsersDB(users);
+
+  res.json({ message: `Password updated successfully for ${targetUser.name}.` });
+});
+
+// 5. Admin Create User
 app.post('/api/users/create', requireAdmin, (req, res) => {
   const { name, email, password, isAdmin: makeAdmin, isVerified: setVerified, permissions } = req.body;
 

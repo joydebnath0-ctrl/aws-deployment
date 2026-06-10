@@ -1702,6 +1702,9 @@ function initializeDashboard(user) {
     fetchDistributions();
     setInterval(fetchDistributions, 12000);
   }
+
+  // Init password change modal (available to all authenticated users)
+  initPwdModal();
 }
 
 async function checkSession() {
@@ -1885,6 +1888,7 @@ function renderUsersTable(users) {
           <div class="users-actions">
             <button class="btn-action ${verifyBtnClass}" onclick="handleUserVerify('${user.email}', ${!user.isVerified})">${verifyBtnText}</button>
             <button class="btn-action ${roleBtnClass}" onclick="handleUserAdmin('${user.email}', ${!user.isAdmin})" ${isSelf ? 'disabled' : ''}>${roleBtnText}</button>
+            <button class="btn-action btn-reset-pwd" onclick="openPwdModal('${user.email}', '${escapeHtml(user.name)}', ${user.isAdmin})">Reset Pwd</button>
             <button class="btn-action btn-delete" onclick="handleUserDelete('${user.email}')" ${isSelf ? 'disabled' : ''}>Delete</button>
           </div>
         </td>
@@ -2047,4 +2051,115 @@ function escapeHtml(str) {
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#039;');
+}
+
+// ===== PASSWORD CHANGE MODAL =====
+function openPwdModal(email, name, targetIsAdmin) {
+  const authUser = JSON.parse(localStorage.getItem('auth_user') || '{}');
+  // Non-admin trying to reset an admin — block client-side too
+  if (!authUser.isAdmin && targetIsAdmin) {
+    alert('Permission Denied: You cannot change an admin password.');
+    return;
+  }
+  const overlay = document.getElementById('pwd-modal-overlay');
+  document.getElementById('pwd-modal-email').value = email;
+  document.getElementById('pwd-modal-title').textContent = `Reset Password`;
+  document.getElementById('pwd-modal-target-info').textContent = `Changing password for: ${name} (${email})`;
+  document.getElementById('pwd-modal-new').value = '';
+  document.getElementById('pwd-modal-confirm').value = '';
+  document.getElementById('pwd-modal-error').style.display = 'none';
+  document.getElementById('pwd-modal-success').style.display = 'none';
+  overlay.style.display = 'flex';
+  document.getElementById('pwd-modal-new').focus();
+}
+window.openPwdModal = openPwdModal;
+
+function initPwdModal() {
+  const overlay = document.getElementById('pwd-modal-overlay');
+  const closeBtn = document.getElementById('btn-pwd-modal-close');
+  const submitBtn = document.getElementById('btn-pwd-modal-submit');
+  const changePwdBtn = document.getElementById('btn-change-password');
+
+  // Close on X button
+  if (closeBtn) closeBtn.addEventListener('click', () => {
+    overlay.style.display = 'none';
+  });
+
+  // Close on backdrop click
+  if (overlay) overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.style.display = 'none';
+  });
+
+  // Open modal for own password from profile dropdown
+  if (changePwdBtn) changePwdBtn.addEventListener('click', () => {
+    const authUser = JSON.parse(localStorage.getItem('auth_user') || '{}');
+    document.getElementById('profile-dropdown-menu').style.display = 'none';
+    document.getElementById('pwd-modal-email').value = authUser.email || '';
+    document.getElementById('pwd-modal-title').textContent = 'Change Your Password';
+    document.getElementById('pwd-modal-target-info').textContent = `Changing password for: ${authUser.name || ''} (${authUser.email || ''})`;
+    document.getElementById('pwd-modal-new').value = '';
+    document.getElementById('pwd-modal-confirm').value = '';
+    document.getElementById('pwd-modal-error').style.display = 'none';
+    document.getElementById('pwd-modal-success').style.display = 'none';
+    overlay.style.display = 'flex';
+    document.getElementById('pwd-modal-new').focus();
+  });
+
+  // Submit password change
+  if (submitBtn) submitBtn.addEventListener('click', async () => {
+    const email = document.getElementById('pwd-modal-email').value.trim();
+    const newPwd = document.getElementById('pwd-modal-new').value;
+    const confirmPwd = document.getElementById('pwd-modal-confirm').value;
+    const errDiv = document.getElementById('pwd-modal-error');
+    const succDiv = document.getElementById('pwd-modal-success');
+
+    errDiv.style.display = 'none';
+    succDiv.style.display = 'none';
+
+    if (!newPwd || newPwd.length < 6) {
+      errDiv.textContent = 'Password must be at least 6 characters.';
+      errDiv.style.display = 'block';
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      errDiv.textContent = 'Passwords do not match.';
+      errDiv.style.display = 'block';
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Updating…';
+
+    try {
+      const res = await fetch('/api/users/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, newPassword: newPwd })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update password');
+
+      succDiv.textContent = `✓ ${data.message}`;
+      succDiv.style.display = 'block';
+      document.getElementById('pwd-modal-new').value = '';
+      document.getElementById('pwd-modal-confirm').value = '';
+
+      // Auto-close after 2s
+      setTimeout(() => { overlay.style.display = 'none'; }, 2000);
+    } catch (err) {
+      errDiv.textContent = err.message;
+      errDiv.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '🔑 &nbsp;Update Password';
+    }
+  });
+
+  // Allow Enter key to submit
+  ['pwd-modal-new', 'pwd-modal-confirm'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submitBtn.click();
+    });
+  });
 }
