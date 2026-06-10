@@ -236,6 +236,8 @@ function initEC2UI() {
   if (ec2VpcSelect) ec2VpcSelect.addEventListener('change', () => { updateSubnetOptionsForEC2(); updateEC2Summary(); });
   const ec2SubnetSelect = document.getElementById('ec2-subnet');
   if (ec2SubnetSelect) ec2SubnetSelect.addEventListener('change', updateEC2Summary);
+  const ec2AssociateEip = document.getElementById('ec2-associate-eip');
+  if (ec2AssociateEip) ec2AssociateEip.addEventListener('change', updateEC2Summary);
 
   const btnToggleUserdata = document.getElementById('btn-toggle-userdata');
   const userdataTextarea = document.getElementById('user-data');
@@ -497,6 +499,11 @@ function updateEC2Summary() {
     document.getElementById('summary-vpc').textContent = 'Default VPC';
     document.getElementById('summary-subnet-row').style.display = 'none';
   }
+
+  // Elastic IP Summary update
+  const associateEip = document.getElementById('ec2-associate-eip') ? document.getElementById('ec2-associate-eip').checked : false;
+  const summaryEip = document.getElementById('summary-eip');
+  if (summaryEip) summaryEip.textContent = associateEip ? 'Yes (EIP)' : 'No';
 }
 
 // ===== VPC SUMMARY =====
@@ -589,6 +596,7 @@ async function fetchEC2Preview() {
   const selectedVpc = activeVpcs.find(v => v.name === vpcName);
   const vpcId = selectedVpc ? selectedVpc.vpcId : '';
   const subnetId = document.getElementById('ec2-subnet').value || '';
+  const associateEip = document.getElementById('ec2-associate-eip') ? document.getElementById('ec2-associate-eip').checked : false;
 
   let amiId = '';
   if (os === 'custom') amiId = document.getElementById('custom-ami-id').value.trim() || 'ami-custom-input';
@@ -598,7 +606,7 @@ async function fetchEC2Preview() {
   preMain.textContent = 'Generating preview...';
   preVars.textContent = 'Generating preview...';
   try {
-    const res = await fetch('/api/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ports, userData, vpcId, subnetId }) });
+    const res = await fetch('/api/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ports, userData, vpcId, subnetId, associateEip }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Preview failed');
     preMain.textContent = data.mainTf;
@@ -675,6 +683,7 @@ async function deployEC2Instance() {
   const selectedVpc = activeVpcs.find(v => v.name === vpcName);
   const vpcId = selectedVpc ? selectedVpc.vpcId : '';
   const subnetId = document.getElementById('ec2-subnet').value || '';
+  const associateEip = document.getElementById('ec2-associate-eip') ? document.getElementById('ec2-associate-eip').checked : false;
 
   let amiId = '';
   if (os === 'custom') amiId = document.getElementById('custom-ami-id').value.trim();
@@ -683,7 +692,7 @@ async function deployEC2Instance() {
   setDeployingState(true);
   startLogStream(name);
   try {
-    const res = await fetch('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ports, awsProfile, userData, vpcId, subnetId }) });
+    const res = await fetch('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ports, awsProfile, userData, vpcId, subnetId, associateEip }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Provision failed');
     document.querySelector('#svc-panel-ec2 [data-tab="ec2-deployments"]').click();
@@ -693,6 +702,8 @@ async function deployEC2Instance() {
     document.getElementById('userdata-summary').textContent = 'No user data configured';
     document.getElementById('disk-slider').value = 30;
     document.getElementById('disk-number').value = 30;
+    const ec2AssociateEip = document.getElementById('ec2-associate-eip');
+    if (ec2AssociateEip) ec2AssociateEip.checked = false;
     
     // Reset VPC Selection
     if (document.getElementById('ec2-vpc')) {
@@ -825,6 +836,7 @@ function renderDeploymentsList() {
       <div class="deployment-details-grid">
         <span class="detail-lbl">Instance ID</span><span class="detail-val">${dep.instanceId || 'N/A'}</span>
         <span class="detail-lbl">Public IP</span><span class="detail-val">${dep.publicIp !== 'N/A' ? `<a href="http://${dep.publicIp}" target="_blank" style="color:#58a6ff;text-decoration:none;">${dep.publicIp}</a>` : 'N/A'}</span>
+        <span class="detail-lbl">Elastic IP</span><span class="detail-val">${dep.associateEip ? 'Yes (EIP)' : 'No'}</span>
         <span class="detail-lbl">Profile</span><span class="detail-val">${dep.awsProfile || 'default'}</span>
         <span class="detail-lbl">Region</span><span class="detail-val">${dep.region}</span>
         <span class="detail-lbl">Type</span><span class="detail-val">${dep.instanceType}</span>

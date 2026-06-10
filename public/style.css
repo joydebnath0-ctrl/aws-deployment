@@ -1954,4 +1954,17 @@ body.light-theme .toggle-slider::before {
   background: #ffffff;
 }
 
+body.light-theme #eip-container {
+  background: #ffffff !important;
+  border-color: #d5dbdb !important;
+}
+
+body.light-theme #eip-container p {
+  color: #545b64 !important;
+}
+
+body.light-theme #eip-container p:first-of-type {
+  color: #232f3e !important;
+}
+
 

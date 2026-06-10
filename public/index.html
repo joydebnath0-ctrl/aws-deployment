@@ -369,11 +369,21 @@
                   <option value="">Default VPC</option>
                 </select>
               </div>
-              <div class="ec2-form-group" id="ec2-subnet-container" style="display:none;">
+              <div class="ec2-form-group" id="ec2-subnet-container" style="display:none; margin-bottom:14px;">
                 <label class="ec2-label">Subnet</label>
                 <select id="ec2-subnet" class="ec2-select">
                   <option value="">Default Subnet</option>
                 </select>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;background:#161b22;border:1px solid #30363d;border-radius:6px;padding:12px 14px;margin-bottom:14px;" id="eip-container">
+                <div style="flex:1;padding-right:12px;">
+                  <p style="margin:0; font-size:13px; color:#e2e8f0; font-family:'Inter',sans-serif; font-weight:500;">Elastic IP (EIP)</p>
+                  <p style="margin:2px 0 0; font-size:11px; color:#8b949e; font-family:'Inter',sans-serif;">Allocate and associate a static Elastic IP address to this instance</p>
+                </div>
+                <label class="toggle-switch">
+                  <input type="checkbox" id="ec2-associate-eip">
+                  <span class="toggle-slider"></span>
+                </label>
               </div>
               <div style="background:#161b22;border:1px solid #30363d;border-radius:6px;padding:14px;">
                 <p style="font-size:12px;color:#8b949e;margin:0;line-height:1.7;font-family:'Inter',sans-serif;">
@@ -404,6 +414,7 @@
                   <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:#8b949e;">Ports</span><span style="color:#e2e8f0;font-weight:500;" id="summary-ports">—</span></div>
                   <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:#8b949e;">VPC Network</span><span style="color:#e2e8f0;font-weight:500;" id="summary-vpc">Default VPC</span></div>
                   <div style="display:flex;justify-content:space-between;font-size:12px;" id="summary-subnet-row"><span style="color:#8b949e;">Subnet</span><span style="color:#e2e8f0;font-weight:500;" id="summary-subnet">Default Subnet</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:#8b949e;">Elastic IP</span><span style="color:#e2e8f0;font-weight:500;" id="summary-eip">No</span></div>
                 </div>
               </div>
             </div>

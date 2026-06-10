@@ -841,6 +841,11 @@ variable "subnet_id" {
   default = ""
 }
 
+variable "associate_eip" {
+  type    = bool
+  default = false
+}
+
 resource "tls_private_key" "key" {
   algorithm = "RSA"
   rsa_bits  = 4096
@@ -906,8 +911,18 @@ resource "aws_instance" "instance" {
   }
 }
 
+resource "aws_eip" "eip" {
+  count    = var.associate_eip ? 1 : 0
+  instance = aws_instance.instance.id
+  domain   = "vpc"
+
+  tags = {
+    Name = "\${var.instance_name}-eip"
+  }
+}
+
 output "public_ip" {
-  value = aws_instance.instance.public_ip
+  value = var.associate_eip ? aws_eip.eip[0].public_ip : aws_instance.instance.public_ip
 }
 
 output "instance_id" {
@@ -1279,7 +1294,7 @@ app.get('/api/stream-logs', (req, res) => {
 
 // 2.5 Preview deployment configuration
 app.post('/api/preview', requirePermission('ec2','write'), (req, res) => {
-  const { name, region, instanceType, amiId, volumeSize, ports, userData, vpcId, subnetId } = req.body;
+  const { name, region, instanceType, amiId, volumeSize, ports, userData, vpcId, subnetId, associateEip } = req.body;
 
   if (!name || !region || !instanceType || !amiId) {
     return res.status(400).json({ error: 'Missing required parameters' });
@@ -1308,7 +1323,8 @@ app.post('/api/preview', requirePermission('ec2','write'), (req, res) => {
     volume_size: parseInt(volumeSize, 10) || 30,
     allowed_ports: allowedPorts,
     vpc_id: vpcId || '',
-    subnet_id: subnetId || ''
+    subnet_id: subnetId || '',
+    associate_eip: !!associateEip
   };
 
   res.json({
@@ -1319,7 +1335,7 @@ app.post('/api/preview', requirePermission('ec2','write'), (req, res) => {
 
 // 3. Trigger new deployment
 app.post('/api/deploy', requirePermission('ec2','write'), (req, res) => {
-  const { name, region, instanceType, amiId, volumeSize, ports, awsProfile, userData, vpcId, subnetId } = req.body;
+  const { name, region, instanceType, amiId, volumeSize, ports, awsProfile, userData, vpcId, subnetId, associateEip } = req.body;
 
   if (!name || !region || !instanceType || !amiId) {
     return res.status(400).json({ error: 'Missing required parameters' });
@@ -1361,7 +1377,8 @@ app.post('/api/deploy', requirePermission('ec2','write'), (req, res) => {
     volume_size: parseInt(volumeSize, 10) || 30,
     allowed_ports: allowedPorts,
     vpc_id: vpcId || '',
-    subnet_id: subnetId || ''
+    subnet_id: subnetId || '',
+    associate_eip: !!associateEip
   };
   fs.writeFileSync(path.join(targetDir, 'terraform.tfvars.json'), JSON.stringify(tfVars, null, 2));
 
@@ -1375,6 +1392,7 @@ app.post('/api/deploy', requirePermission('ec2','write'), (req, res) => {
     ports: allowedPorts.join(','),
     vpcId: vpcId || '',
     subnetId: subnetId || '',
+    associateEip: !!associateEip,
     status: 'creating',
     publicIp: 'N/A',
     instanceId: 'N/A',
