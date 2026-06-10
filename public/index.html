@@ -842,6 +842,48 @@
                   </div>
                 </div>
 
+                <!-- Service Permissions Matrix -->
+                <div style="background:#161b22; border:1px solid #30363d; border-radius:8px; padding:16px; margin-bottom:18px;" id="permissions-section">
+                  <p style="font-size:11px; color:#8b949e; text-transform:uppercase; letter-spacing:0.05em; font-weight:600; margin:0 0 4px; font-family:'Inter',sans-serif;">Service Permissions</p>
+                  <p style="font-size:11px; color:#8b949e; margin:0 0 12px; font-family:'Inter',sans-serif;">Specify granular access control for standard users</p>
+                  <table style="width:100%; border-collapse:collapse; font-family:'Inter',sans-serif; font-size:13px; color:#c9d1d9;">
+                    <thead>
+                      <tr style="border-bottom:1px solid #30363d;">
+                        <th style="text-align:left; padding:8px 4px; color:#8b949e; font-weight:500;">Service</th>
+                        <th style="text-align:center; padding:8px 4px; color:#8b949e; font-weight:500;">Read</th>
+                        <th style="text-align:center; padding:8px 4px; color:#8b949e; font-weight:500;">Write</th>
+                        <th style="text-align:center; padding:8px 4px; color:#8b949e; font-weight:500;">Execute</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr style="border-bottom:1px solid #21262d;">
+                        <td style="padding:10px 4px; font-weight:500;">EC2</td>
+                        <td style="text-align:center; padding:10px 4px;"><input type="checkbox" id="perm-ec2-read"></td>
+                        <td style="text-align:center; padding:10px 4px;"><input type="checkbox" id="perm-ec2-write"></td>
+                        <td style="text-align:center; padding:10px 4px;"><input type="checkbox" id="perm-ec2-execute"></td>
+                      </tr>
+                      <tr style="border-bottom:1px solid #21262d;">
+                        <td style="padding:10px 4px; font-weight:500;">VPC</td>
+                        <td style="text-align:center; padding:10px 4px;"><input type="checkbox" id="perm-vpc-read"></td>
+                        <td style="text-align:center; padding:10px 4px;"><input type="checkbox" id="perm-vpc-write"></td>
+                        <td style="text-align:center; padding:10px 4px;"><input type="checkbox" id="perm-vpc-execute"></td>
+                      </tr>
+                      <tr style="border-bottom:1px solid #21262d;">
+                        <td style="padding:10px 4px; font-weight:500;">S3</td>
+                        <td style="text-align:center; padding:10px 4px;"><input type="checkbox" id="perm-s3-read"></td>
+                        <td style="text-align:center; padding:10px 4px;"><input type="checkbox" id="perm-s3-write"></td>
+                        <td style="text-align:center; padding:10px 4px;"><input type="checkbox" id="perm-s3-execute"></td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 4px; font-weight:500;">CloudFront</td>
+                        <td style="text-align:center; padding:10px 4px;"><input type="checkbox" id="perm-cf-read"></td>
+                        <td style="text-align:center; padding:10px 4px;"><input type="checkbox" id="perm-cf-write"></td>
+                        <td style="text-align:center; padding:10px 4px;"><input type="checkbox" id="perm-cf-execute"></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
                 <button type="submit" class="ec2-btn-primary" style="width:100%; background: linear-gradient(135deg, #a371f7, #7c3aed);">
                   ➕ &nbsp;Create User Account
                 </button>

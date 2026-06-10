@@ -88,6 +88,19 @@ let activeDistributions = [];
 let isDeploying = false;
 let currentService = 'ec2';
 
+function hasPermission(service, level) {
+  const userStr = localStorage.getItem('auth_user');
+  if (!userStr) return false;
+  try {
+    const user = JSON.parse(userStr);
+    if (user.isAdmin) return true;
+    const perms = user.permissions || {};
+    return Array.isArray(perms[service]) && perms[service].includes(level);
+  } catch (e) {
+    return false;
+  }
+}
+
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
   initAuth();
@@ -819,13 +832,17 @@ function renderDeploymentsList() {
       </div>
       <div class="deployment-actions-bar">
         <button type="button" class="ec2-btn-outline" onclick="startLogStream('${dep.name}')">View Logs</button>
-        ${dep.status !== 'destroying' ? `<button type="button" class="ec2-btn-danger" onclick="triggerEC2Destroy('${dep.name}')">Destroy</button>` : ''}
+        ${dep.status !== 'destroying' ? `<button type="button" class="ec2-btn-danger" onclick="triggerEC2Destroy('${dep.name}')" ${hasPermission('ec2', 'execute') ? '' : 'disabled style="opacity:0.4;cursor:not-allowed;" title="No execute permission"'}>Destroy</button>` : ''}
       </div>`;
     container.appendChild(card);
   });
 }
 
 async function triggerEC2Destroy(name) {
+  if (!hasPermission('ec2', 'execute')) {
+    alert('Permission Denied: You do not have execute permission for EC2.');
+    return;
+  }
   if (!confirm(`Are you sure you want to permanently delete instance "${name}"? This cannot be undone.`)) return;
   document.querySelector('#svc-panel-ec2 [data-tab="ec2-deployments"]').click();
   startLogStream(name);
@@ -873,13 +890,17 @@ function renderVpcList() {
       </div>
       <div class="deployment-actions-bar">
         <button type="button" class="ec2-btn-outline" onclick="startLogStream('${vpc.name}')">View Logs</button>
-        ${vpc.status !== 'destroying' ? `<button type="button" class="ec2-btn-danger" onclick="triggerVpcDestroy('${vpc.name}')">Destroy</button>` : ''}
+        ${vpc.status !== 'destroying' ? `<button type="button" class="ec2-btn-danger" onclick="triggerVpcDestroy('${vpc.name}')" ${hasPermission('vpc', 'execute') ? '' : 'disabled style="opacity:0.4;cursor:not-allowed;" title="No execute permission"'}>Destroy</button>` : ''}
       </div>`;
     container.appendChild(card);
   });
 }
 
 async function triggerVpcDestroy(name) {
+  if (!hasPermission('vpc', 'execute')) {
+    alert('Permission Denied: You do not have execute permission for VPC.');
+    return;
+  }
   if (!confirm(`Are you sure you want to destroy VPC "${name}" and all its resources? This cannot be undone.`)) return;
   document.querySelector('#svc-panel-vpc [data-tab="vpc-list"]').click();
   startLogStream(name);
@@ -925,13 +946,17 @@ function renderS3BucketList() {
       </div>
       <div class="deployment-actions-bar">
         <button type="button" class="ec2-btn-outline" onclick="startLogStream('${bucket.name}')">View Logs</button>
-        ${bucket.status !== 'destroying' ? `<button type="button" class="ec2-btn-danger" onclick="triggerS3Destroy('${bucket.name}')">Destroy</button>` : ''}
+        ${bucket.status !== 'destroying' ? `<button type="button" class="ec2-btn-danger" onclick="triggerS3Destroy('${bucket.name}')" ${hasPermission('s3', 'execute') ? '' : 'disabled style="opacity:0.4;cursor:not-allowed;" title="No execute permission"'}>Destroy</button>` : ''}
       </div>`;
     container.appendChild(card);
   });
 }
 
 async function triggerS3Destroy(name) {
+  if (!hasPermission('s3', 'execute')) {
+    alert('Permission Denied: You do not have execute permission for S3.');
+    return;
+  }
   if (!confirm(`Are you sure you want to destroy S3 bucket "${name}"? This cannot be undone.`)) return;
   document.querySelector('#svc-panel-s3 [data-tab="s3-list"]').click();
   startLogStream(name);
@@ -1134,13 +1159,17 @@ function renderCfList() {
       </div>` : ''}
       <div class="deployment-actions-bar">
         <button type="button" class="ec2-btn-outline" onclick="startLogStream('${dist.name}')">View Logs</button>
-        ${dist.status !== 'destroying' ? `<button type="button" class="ec2-btn-danger" onclick="triggerCfDestroy('${dist.name}')">Destroy</button>` : ''}
+        ${dist.status !== 'destroying' ? `<button type="button" class="ec2-btn-danger" onclick="triggerCfDestroy('${dist.name}')" ${hasPermission('cf', 'execute') ? '' : 'disabled style="opacity:0.4;cursor:not-allowed;" title="No execute permission"'}>Destroy</button>` : ''}
       </div>`;
     container.appendChild(card);
   });
 }
 
 async function triggerCfDestroy(name) {
+  if (!hasPermission('cf', 'execute')) {
+    alert('Permission Denied: You do not have execute permission for CloudFront.');
+    return;
+  }
   if (!confirm(`Are you sure you want to destroy CloudFront distribution "${name}"? This cannot be undone.`)) return;
   document.querySelector('#svc-panel-cf [data-tab="cf-list"]').click();
   startLogStream(name);
@@ -1597,20 +1626,82 @@ function initializeDashboard(user) {
   initS3UI();
   initCfUI();
   fetchAwsProfiles();
-  fetchDeployments();
-  fetchVpcs();
-  fetchS3Buckets();
-  fetchDistributions();
+
+  // Gate service sidebar navigation buttons by permissions
+  const perms = user.permissions || {};
+  const services = ['ec2', 'vpc', 's3', 'cf'];
+  let defaultService = null;
+  
+  services.forEach(svc => {
+    const btn = document.getElementById(`svc-btn-${svc}`);
+    if (btn) {
+      const hasRead = user.isAdmin || (perms[svc] && perms[svc].includes('read'));
+      if (hasRead) {
+        btn.style.display = 'inline-flex';
+        if (!defaultService) defaultService = svc;
+      } else {
+        btn.style.display = 'none';
+      }
+    }
+  });
+
+  // Set active service based on permissions
+  if (defaultService) {
+    currentService = defaultService;
+    document.querySelectorAll('.svc-btn').forEach(b => b.classList.remove('active'));
+    const defaultBtn = document.getElementById(`svc-btn-${defaultService}`);
+    if (defaultBtn) defaultBtn.classList.add('active');
+    
+    document.querySelectorAll('.service-panel').forEach(p => p.classList.remove('active'));
+    const defaultPanel = document.getElementById(`svc-panel-${defaultService}`);
+    if (defaultPanel) defaultPanel.classList.add('active');
+    
+    if (defaultService === 'cf') fetchS3BucketOptions();
+  } else if (!user.isAdmin) {
+    document.querySelectorAll('.service-panel').forEach(p => p.classList.remove('active'));
+  }
+
+  // Gate deploy/provision buttons if no write permission
+  const deployButtons = {
+    ec2: 'btn-provision-instance',
+    vpc: 'btn-vpc-action',
+    s3: 'btn-s3-action',
+    cf: 'btn-cf-action'
+  };
+  services.forEach(svc => {
+    if (!hasPermission(svc, 'write')) {
+      const btn = document.getElementById(deployButtons[svc]);
+      if (btn) {
+        btn.disabled = true;
+        btn.style.opacity = '0.4';
+        btn.style.cursor = 'not-allowed';
+        btn.title = `You do not have write permission for ${svc.toUpperCase()}.`;
+      }
+    }
+  });
 
   if (user && user.isAdmin) {
     initUsersUI();
     fetchUsers();
   }
-  
-  setInterval(fetchDeployments, 8000);
-  setInterval(fetchVpcs, 10000);
-  setInterval(fetchS3Buckets, 10000);
-  setInterval(fetchDistributions, 12000);
+
+  // Start polling only if user has read permission
+  if (user.isAdmin || (perms['ec2'] && perms['ec2'].includes('read'))) {
+    fetchDeployments();
+    setInterval(fetchDeployments, 8000);
+  }
+  if (user.isAdmin || (perms['vpc'] && perms['vpc'].includes('read'))) {
+    fetchVpcs();
+    setInterval(fetchVpcs, 10000);
+  }
+  if (user.isAdmin || (perms['s3'] && perms['s3'].includes('read'))) {
+    fetchS3Buckets();
+    setInterval(fetchS3Buckets, 10000);
+  }
+  if (user.isAdmin || (perms['cf'] && perms['cf'].includes('read'))) {
+    fetchDistributions();
+    setInterval(fetchDistributions, 12000);
+  }
 }
 
 async function checkSession() {
@@ -1705,7 +1796,26 @@ function initUsersUI() {
     const verifiedChk = document.getElementById('new-user-is-verified');
     if (verifiedChk) verifiedChk.checked = true;
     const adminChk = document.getElementById('new-user-is-admin');
-    if (adminChk) adminChk.checked = false;
+    if (adminChk) {
+      adminChk.checked = false;
+      adminChk.addEventListener('change', () => {
+        const permSection = document.getElementById('permissions-section');
+        if (permSection) {
+          if (adminChk.checked) {
+            permSection.style.display = 'none';
+            // Clear checked inputs
+            ['ec2', 'vpc', 's3', 'cf'].forEach(svc => {
+              ['read', 'write', 'execute'].forEach(p => {
+                const el = document.getElementById(`perm-${svc}-${p}`);
+                if (el) el.checked = false;
+              });
+            });
+          } else {
+            permSection.style.display = 'block';
+          }
+        }
+      });
+    }
   }
 }
 
@@ -1884,11 +1994,23 @@ async function handleCreateUser(e) {
   const isAdmin = document.getElementById('new-user-is-admin').checked;
   const isVerified = document.getElementById('new-user-is-verified').checked;
 
+  const getCheckedPerms = (svc) => ['read', 'write', 'execute'].filter(p => {
+    const el = document.getElementById(`perm-${svc}-${p}`);
+    return el ? el.checked : false;
+  });
+
+  const permissions = {
+    ec2: getCheckedPerms('ec2'),
+    vpc: getCheckedPerms('vpc'),
+    s3: getCheckedPerms('s3'),
+    cf: getCheckedPerms('cf')
+  };
+
   try {
     const response = await fetch('/api/users/create', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password, isAdmin, isVerified })
+      body: JSON.stringify({ name, email, password, isAdmin, isVerified, permissions })
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || 'Failed to create user');
@@ -1901,6 +2023,15 @@ async function handleCreateUser(e) {
     document.getElementById('create-user-form').reset();
     document.getElementById('new-user-is-verified').checked = true;
     document.getElementById('new-user-is-admin').checked = false;
+    const permSection = document.getElementById('permissions-section');
+    if (permSection) permSection.style.display = 'block';
+    // Clear checkboxes explicitly
+    ['ec2', 'vpc', 's3', 'cf'].forEach(svc => {
+      ['read', 'write', 'execute'].forEach(p => {
+        const el = document.getElementById(`perm-${svc}-${p}`);
+        if (el) el.checked = false;
+      });
+    });
   } catch (err) {
     if (errorDiv) {
       errorDiv.textContent = err.message;

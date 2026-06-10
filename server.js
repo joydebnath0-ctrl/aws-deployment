@@ -384,7 +384,8 @@ app.post('/api/auth/login', (req, res) => {
     user: {
       name: user.name,
       email: user.email,
-      isAdmin: !!user.isAdmin
+      isAdmin: !!user.isAdmin,
+      permissions: user.isAdmin ? { ec2: ['read','write','execute'], vpc: ['read','write','execute'], s3: ['read','write','execute'], cf: ['read','write','execute'] } : (user.permissions || {})
     }
   });
 });
@@ -410,7 +411,8 @@ app.get('/api/auth/me', (req, res) => {
   res.json({
     name: user.name,
     email: user.email,
-    isAdmin: !!user.isAdmin
+    isAdmin: !!user.isAdmin,
+    permissions: user.isAdmin ? { ec2: ['read','write','execute'], vpc: ['read','write','execute'], s3: ['read','write','execute'], cf: ['read','write','execute'] } : (user.permissions || {})
   });
 });
 
@@ -446,6 +448,23 @@ function requireAdmin(req, res, next) {
     return res.status(403).json({ error: 'Forbidden. Admin privileges required.' });
   }
   next();
+}
+
+// Middleware to require a specific service permission
+// perm: 'read' | 'write' | 'execute'
+function requirePermission(service, perm) {
+  return (req, res, next) => {
+    const users = readUsersDB();
+    const user = users.find(u => u.email.toLowerCase() === req.userEmail.toLowerCase());
+    if (!user) return res.status(401).json({ error: 'Unauthorized.' });
+    // Admins have all permissions
+    if (user.isAdmin) return next();
+    const perms = (user.permissions || {})[service] || [];
+    if (!perms.includes(perm)) {
+      return res.status(403).json({ error: `You do not have ${perm} permission for ${service.toUpperCase()}.` });
+    }
+    next();
+  };
 }
 
 // 1. Get all users
@@ -525,7 +544,7 @@ app.delete('/api/users/delete', requireAdmin, (req, res) => {
 
 // 4. Admin Create User
 app.post('/api/users/create', requireAdmin, (req, res) => {
-  const { name, email, password, isAdmin: makeAdmin, isVerified: setVerified } = req.body;
+  const { name, email, password, isAdmin: makeAdmin, isVerified: setVerified, permissions } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Name, email, and password are required.' });
@@ -550,15 +569,35 @@ app.post('/api/users/create', requireAdmin, (req, res) => {
   const salt = generateSalt();
   const passwordHash = hashPassword(password, salt);
 
+  // Sanitize permissions: only allow valid services/levels
+  const VALID_SERVICES = ['ec2', 'vpc', 's3', 'cf'];
+  const VALID_PERMS = ['read', 'write', 'execute'];
+  const sanitizedPermissions = {};
+  if (permissions && typeof permissions === 'object') {
+    VALID_SERVICES.forEach(svc => {
+      if (Array.isArray(permissions[svc])) {
+        sanitizedPermissions[svc] = permissions[svc].filter(p => VALID_PERMS.includes(p));
+      } else {
+        sanitizedPermissions[svc] = [];
+      }
+    });
+  } else {
+    VALID_SERVICES.forEach(svc => { sanitizedPermissions[svc] = []; });
+  }
+
   const newUser = {
     name: name.trim(),
     email: lowerEmail,
     salt,
     passwordHash,
-    isVerified: setVerified !== false,  // default to verified for admin-created accounts
+    isVerified: setVerified !== false,
     isAdmin: !!makeAdmin,
+    permissions: !!makeAdmin ? undefined : sanitizedPermissions,
     createdAt: new Date().toISOString()
   };
+
+  // Clean up undefined fields
+  if (newUser.permissions === undefined) delete newUser.permissions;
 
   users.push(newUser);
   writeUsersDB(users);
@@ -569,7 +608,8 @@ app.post('/api/users/create', requireAdmin, (req, res) => {
       name: newUser.name,
       email: newUser.email,
       isAdmin: newUser.isAdmin,
-      isVerified: newUser.isVerified
+      isVerified: newUser.isVerified,
+      permissions: newUser.permissions || {}
     }
   });
 });
@@ -1114,7 +1154,7 @@ app.post('/api/aws-profiles', (req, res) => {
 });
 
 // 1. Get all deployments
-app.get('/api/deployments', (req, res) => {
+app.get('/api/deployments', requirePermission('ec2','read'), (req, res) => {
   res.json(readDB());
 });
 
@@ -1149,7 +1189,7 @@ app.get('/api/stream-logs', (req, res) => {
 });
 
 // 2.5 Preview deployment configuration
-app.post('/api/preview', (req, res) => {
+app.post('/api/preview', requirePermission('ec2','write'), (req, res) => {
   const { name, region, instanceType, amiId, volumeSize, ports, userData, vpcId, subnetId } = req.body;
 
   if (!name || !region || !instanceType || !amiId) {
@@ -1189,7 +1229,7 @@ app.post('/api/preview', (req, res) => {
 });
 
 // 3. Trigger new deployment
-app.post('/api/deploy', (req, res) => {
+app.post('/api/deploy', requirePermission('ec2','write'), (req, res) => {
   const { name, region, instanceType, amiId, volumeSize, ports, awsProfile, userData, vpcId, subnetId } = req.body;
 
   if (!name || !region || !instanceType || !amiId) {
@@ -1305,7 +1345,7 @@ app.post('/api/deploy', (req, res) => {
 });
 
 // 4. Destroy deployment
-app.post('/api/destroy', (req, res) => {
+app.post('/api/destroy', requirePermission('ec2', 'execute'), (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
 
@@ -1353,7 +1393,7 @@ app.post('/api/destroy', (req, res) => {
 });
 
 // 5. Download Private Key
-app.get('/api/download-key/:name', (req, res) => {
+app.get('/api/download-key/:name', requirePermission('ec2','read'), (req, res) => {
   const { name } = req.params;
   const keyPath = path.join(DEPLOYMENTS_DIR, name, `${name}.pem`);
 
@@ -1442,11 +1482,11 @@ function writeS3DB(data) { fs.writeFileSync(S3_DB_FILE, JSON.stringify(data, nul
 
 // === VPC ROUTES ===
 
-app.get('/api/vpcs', (req, res) => {
+app.get('/api/vpcs', requirePermission('vpc','read'), (req, res) => {
   res.json(readVpcDB());
 });
 
-app.post('/api/vpc/preview', (req, res) => {
+app.post('/api/vpc/preview', requirePermission('vpc','write'), (req, res) => {
   const { vpcName, region, cidrBlock, publicSubnetCount, privateSubnetCount, enableIgw, enableNat, enableDnsHostnames } = req.body;
   if (!vpcName || !region || !cidrBlock) return res.status(400).json({ error: 'Missing required parameters' });
   if (!/^[a-zA-Z0-9-]+$/.test(vpcName)) return res.status(400).json({ error: 'VPC name must be alphanumeric and dashes only' });
@@ -1463,7 +1503,7 @@ app.post('/api/vpc/preview', (req, res) => {
   res.json({ mainTf: VPC_TERRAFORM_TEMPLATE, tfVarsJson: JSON.stringify(tfVars, null, 2) });
 });
 
-app.post('/api/vpc/create', (req, res) => {
+app.post('/api/vpc/create', requirePermission('vpc','write'), (req, res) => {
   const { vpcName, region, cidrBlock, publicSubnetCount, privateSubnetCount, enableIgw, enableNat, enableDnsHostnames, awsProfile } = req.body;
   if (!vpcName || !region || !cidrBlock) return res.status(400).json({ error: 'Missing required parameters' });
   if (!/^[a-zA-Z0-9-]+$/.test(vpcName)) return res.status(400).json({ error: 'VPC name must be alphanumeric and dashes only' });
@@ -1519,7 +1559,7 @@ app.post('/api/vpc/create', (req, res) => {
   execute();
 });
 
-app.post('/api/vpc/destroy', (req, res) => {
+app.post('/api/vpc/destroy', requirePermission('vpc','execute'), (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
   const db = readVpcDB();
@@ -1552,11 +1592,11 @@ app.post('/api/vpc/destroy', (req, res) => {
 
 // === S3 ROUTES ===
 
-app.get('/api/s3-buckets', (req, res) => {
+app.get('/api/s3-buckets', requirePermission('s3','read'), (req, res) => {
   res.json(readS3DB());
 });
 
-app.post('/api/s3/preview', (req, res) => {
+app.post('/api/s3/preview', requirePermission('s3','write'), (req, res) => {
   const { bucketName, region, versioningEnabled, blockPublicAccess, encryptionAlgorithm, forceDestroy } = req.body;
   if (!bucketName || !region) return res.status(400).json({ error: 'Missing required parameters' });
   if (!/^[a-z0-9-]+$/.test(bucketName)) return res.status(400).json({ error: 'Bucket name must be lowercase alphanumeric and dashes only' });
@@ -1571,7 +1611,7 @@ app.post('/api/s3/preview', (req, res) => {
   res.json({ mainTf: S3_TERRAFORM_TEMPLATE, tfVarsJson: JSON.stringify(tfVars, null, 2) });
 });
 
-app.post('/api/s3/create', (req, res) => {
+app.post('/api/s3/create', requirePermission('s3','write'), (req, res) => {
   const { bucketName, region, versioningEnabled, blockPublicAccess, encryptionAlgorithm, forceDestroy, awsProfile } = req.body;
   if (!bucketName || !region) return res.status(400).json({ error: 'Missing required parameters' });
   if (!/^[a-z0-9-]+$/.test(bucketName)) return res.status(400).json({ error: 'Bucket name must be lowercase alphanumeric and dashes only' });
@@ -1624,7 +1664,7 @@ app.post('/api/s3/create', (req, res) => {
   execute();
 });
 
-app.post('/api/s3/destroy', (req, res) => {
+app.post('/api/s3/destroy', requirePermission('s3','execute'), (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
   const db = readS3DB();
@@ -1838,17 +1878,17 @@ output "distribution_url" {
 
 // === CLOUDFRONT ROUTES ===
 
-app.get('/api/distributions', (req, res) => {
+app.get('/api/distributions', requirePermission('cf','read'), (req, res) => {
   res.json(readCfDB());
 });
 
 // List managed S3 buckets for selection
-app.get('/api/s3-bucket-names', (req, res) => {
+app.get('/api/s3-bucket-names', requirePermission('cf','read'), (req, res) => {
   const buckets = readS3DB();
   res.json(buckets.map(b => ({ name: b.name, region: b.region, status: b.status })));
 });
 
-app.post('/api/cf/preview', (req, res) => {
+app.post('/api/cf/preview', requirePermission('cf','write'), (req, res) => {
   const { distributionName, s3BucketName, defaultRootObject, priceClass, httpProtocolPolicy, defaultTtl, minTtl, maxTtl, originPath, compress } = req.body;
   if (!distributionName || !s3BucketName) return res.status(400).json({ error: 'Distribution name and S3 bucket name are required' });
   if (!/^[a-zA-Z0-9-]+$/.test(distributionName)) return res.status(400).json({ error: 'Distribution name must be alphanumeric and dashes only' });
@@ -1868,7 +1908,7 @@ app.post('/api/cf/preview', (req, res) => {
   res.json({ mainTf: CF_TERRAFORM_TEMPLATE, tfVarsJson: JSON.stringify(tfVars, null, 2) });
 });
 
-app.post('/api/cf/create', (req, res) => {
+app.post('/api/cf/create', requirePermission('cf','write'), (req, res) => {
   const { distributionName, s3BucketName, awsProfile, defaultRootObject, priceClass, httpProtocolPolicy, defaultTtl, minTtl, maxTtl, originPath, compress } = req.body;
   if (!distributionName || !s3BucketName) return res.status(400).json({ error: 'Distribution name and S3 bucket name are required' });
   if (!/^[a-zA-Z0-9-]+$/.test(distributionName)) return res.status(400).json({ error: 'Distribution name must be alphanumeric and dashes only' });
@@ -1947,7 +1987,7 @@ app.post('/api/cf/create', (req, res) => {
   execute();
 });
 
-app.post('/api/cf/destroy', (req, res) => {
+app.post('/api/cf/destroy', requirePermission('cf','execute'), (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Name is required' });
   const db = readCfDB();
