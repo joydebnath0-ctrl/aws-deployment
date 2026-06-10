@@ -2274,27 +2274,36 @@ function initPermsModal() {
 
 // ===== LIGHT/DARK THEME TOGGLE =====
 function initThemeToggle() {
-  const toggleBtn = document.getElementById('btn-theme-toggle');
-  if (!toggleBtn) return;
+  const toggleBtnAuth = document.getElementById('btn-theme-toggle');
+  const toggleBtnPortal = document.getElementById('btn-theme-toggle-portal');
+
+  const updateThemeUI = (theme) => {
+    if (theme === 'light') {
+      document.body.classList.add('light-theme');
+      if (toggleBtnAuth) toggleBtnAuth.textContent = '☀️';
+      if (toggleBtnPortal) toggleBtnPortal.textContent = '☀️';
+    } else {
+      document.body.classList.remove('light-theme');
+      if (toggleBtnAuth) toggleBtnAuth.textContent = '🌙';
+      if (toggleBtnPortal) toggleBtnPortal.textContent = '🌙';
+    }
+  };
 
   // Load saved theme
   const savedTheme = localStorage.getItem('auth_theme') || 'dark';
-  if (savedTheme === 'light') {
-    document.body.classList.add('light-theme');
-    toggleBtn.textContent = '☀️';
-  } else {
-    document.body.classList.remove('light-theme');
-    toggleBtn.textContent = '🌙';
-  }
+  updateThemeUI(savedTheme);
 
-  toggleBtn.addEventListener('click', () => {
-    const isLight = document.body.classList.toggle('light-theme');
-    if (isLight) {
-      localStorage.setItem('auth_theme', 'light');
-      toggleBtn.textContent = '☀️';
-    } else {
-      localStorage.setItem('auth_theme', 'dark');
-      toggleBtn.textContent = '🌙';
-    }
-  });
+  const toggleTheme = () => {
+    const currentTheme = document.body.classList.contains('light-theme') ? 'light' : 'dark';
+    const nextTheme = currentTheme === 'light' ? 'dark' : 'light';
+    localStorage.setItem('auth_theme', nextTheme);
+    updateThemeUI(nextTheme);
+  };
+
+  if (toggleBtnAuth) {
+    toggleBtnAuth.addEventListener('click', toggleTheme);
+  }
+  if (toggleBtnPortal) {
+    toggleBtnPortal.addEventListener('click', toggleTheme);
+  }
 }
