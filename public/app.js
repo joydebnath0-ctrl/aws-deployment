@@ -1256,7 +1256,7 @@ function updateSSHBanner() {
   const dep = activeDeployments.find(d => d.name === currentLogTarget);
   if (dep && dep.status === 'active' && dep.publicIp !== 'N/A') {
     document.getElementById('ssh-command-snippet').textContent = `ssh -i ~/.ssh/${dep.name}.pem ubuntu@${dep.publicIp}`;
-    document.getElementById('ssh-download-key-btn').href = `/api/download-key/${dep.name}`;
+    document.getElementById('ssh-download-key-btn').href = `/api/download-key/${dep.name}?token=${encodeURIComponent(localStorage.getItem('auth_token') || '')}`;
     banner.style.display = 'block';
     document.getElementById('vpc-created-banner').style.display = 'none';
     document.getElementById('s3-created-banner').style.display = 'none';

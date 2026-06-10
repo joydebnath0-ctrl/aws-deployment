@@ -266,11 +266,17 @@ function renderVerificationHtml(success, message) {
 
 // Auth Middleware
 function requireAuth(req, res, next) {
+  let token = null;
   const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.substring(7);
+  } else if (req.query.token) {
+    token = req.query.token;
+  }
+
+  if (!token) {
     return res.status(401).json({ error: 'Unauthorized. Missing token.' });
   }
-  const token = authHeader.substring(7);
   const sessions = readSessionsDB();
   const session = sessions.find(s => s.token === token);
   if (!session || new Date(session.expiresAt) < new Date()) {
