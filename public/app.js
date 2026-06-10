@@ -103,6 +103,7 @@ function hasPermission(service, level) {
 
 // ===== INIT =====
 document.addEventListener('DOMContentLoaded', () => {
+  initThemeToggle();
   initAuth();
   checkSession();
 });
@@ -2267,6 +2268,33 @@ function initPermsModal() {
     } finally {
       submitBtn.disabled = false;
       submitBtn.innerHTML = '🛡️ &nbsp;Save Permissions';
+    }
+  });
+}
+
+// ===== LIGHT/DARK THEME TOGGLE =====
+function initThemeToggle() {
+  const toggleBtn = document.getElementById('btn-theme-toggle');
+  if (!toggleBtn) return;
+
+  // Load saved theme
+  const savedTheme = localStorage.getItem('auth_theme') || 'dark';
+  if (savedTheme === 'light') {
+    document.body.classList.add('light-theme');
+    toggleBtn.textContent = '☀️';
+  } else {
+    document.body.classList.remove('light-theme');
+    toggleBtn.textContent = '🌙';
+  }
+
+  toggleBtn.addEventListener('click', () => {
+    const isLight = document.body.classList.toggle('light-theme');
+    if (isLight) {
+      localStorage.setItem('auth_theme', 'light');
+      toggleBtn.textContent = '☀️';
+    } else {
+      localStorage.setItem('auth_theme', 'dark');
+      toggleBtn.textContent = '🌙';
     }
   });
 }

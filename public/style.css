@@ -1436,3 +1436,114 @@ textarea.ec2-input {
   background: #38d38c;
 }
 
+/* Smooth CSS transition for theme switching */
+body, .auth-wrapper, .auth-box, .auth-card, .auth-title, .auth-subtitle, .auth-brand-title, .ec2-label, .ec2-input, .auth-link, .auth-switch-text, .pwd-strength-text, .pwd-strength-container, .auth-alert, .theme-toggle-btn {
+  transition: background 0.3s ease, background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.15s ease, opacity 0.3s ease;
+}
+
+/* ===== THEME TOGGLE BUTTON ===== */
+.theme-toggle-btn {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 10001;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #161b22;
+  border: 1px solid #30363d;
+  color: #f0f6fc;
+  font-size: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  outline: none;
+}
+
+.theme-toggle-btn:hover {
+  background: #21262d;
+  border-color: #8b949e;
+  transform: scale(1.05);
+}
+
+.theme-toggle-btn:active {
+  transform: scale(0.95);
+}
+
+/* ===== LIGHT THEME OVERRIDES ===== */
+body.light-theme {
+  background-color: #f2f3f3;
+  color: #16191f;
+}
+
+body.light-theme .auth-wrapper {
+  background: radial-gradient(circle at center, #ffffff 0%, #f2f3f3 100%);
+}
+
+body.light-theme .auth-card {
+  background: #ffffff;
+  border-color: #d5dbdb;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+body.light-theme .auth-title,
+body.light-theme .auth-brand-title {
+  color: #232f3e;
+}
+
+body.light-theme .auth-subtitle,
+body.light-theme .ec2-label,
+body.light-theme .auth-switch-text,
+body.light-theme .pwd-strength-text {
+  color: #545b64;
+}
+
+body.light-theme .ec2-input {
+  background: #ffffff;
+  border-color: #aab7b8;
+  color: #16191f;
+}
+
+body.light-theme .ec2-input:focus {
+  border-color: #0073bb;
+  box-shadow: 0 0 0 3px rgba(0, 115, 187, 0.15);
+}
+
+body.light-theme .auth-link {
+  color: #0066cc;
+}
+
+body.light-theme .auth-link:hover {
+  color: #004499;
+}
+
+body.light-theme .pwd-strength-container {
+  background: #eaeded;
+}
+
+body.light-theme .auth-alert.error {
+  background: #fdf2f2;
+  border-color: #f8b4b4;
+  color: #9b1c1c;
+}
+
+body.light-theme .auth-alert.success {
+  background: #f3faf5;
+  border-color: #def7ec;
+  color: #03543f;
+}
+
+body.light-theme .theme-toggle-btn {
+  background: #ffffff;
+  border-color: #d5dbdb;
+  color: #232f3e;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+body.light-theme .theme-toggle-btn:hover {
+  background: #f2f3f3;
+  border-color: #aab7b8;
+}
+
