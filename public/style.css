@@ -1364,6 +1364,17 @@ textarea.ec2-input {
   color: #c0a0ff;
 }
 
+.btn-action.btn-edit-perms {
+  color: #39d353;
+  border-color: rgba(57, 211, 83, 0.3);
+}
+
+.btn-action.btn-edit-perms:hover {
+  background: rgba(57, 211, 83, 0.1);
+  border-color: #39d353;
+  color: #56ef6f;
+}
+
 .btn-action:disabled {
   opacity: 0.4;
   cursor: not-allowed;

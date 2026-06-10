@@ -1705,6 +1705,8 @@ function initializeDashboard(user) {
 
   // Init password change modal (available to all authenticated users)
   initPwdModal();
+  // Init permissions edit modal
+  initPermsModal();
 }
 
 async function checkSession() {
@@ -1844,6 +1846,7 @@ async function fetchUsers() {
       throw new Error(data.error || 'Failed to fetch users');
     }
     const users = await response.json();
+    window.allUsersList = users;
     renderUsersTable(users);
   } catch (err) {
     console.error('Error fetching users:', err);
@@ -1872,6 +1875,8 @@ function renderUsersTable(users) {
   let html = '';
   users.forEach(user => {
     const isSelf = user.email.toLowerCase().trim() === currentUserEmail;
+    const isJoy = user.email.toLowerCase().trim() === 'joy.debnath@webskitters.com';
+    
     const roleBadge = user.isAdmin 
       ? '<span class="badge badge-admin">Admin</span>' 
       : '<span class="badge badge-user">User</span>';
@@ -1885,6 +1890,10 @@ function renderUsersTable(users) {
     const roleBtnText = user.isAdmin ? 'Make User' : 'Make Admin';
     const roleBtnClass = 'btn-role';
 
+    const roleBtnDisabled = isSelf || isJoy ? 'disabled' : '';
+    const deleteBtnDisabled = isSelf || isJoy ? 'disabled' : '';
+    const permsBtnDisabled = user.isAdmin ? 'disabled' : '';
+
     html += `
       <tr>
         <td style="font-weight:500; color:#e2e8f0;">${escapeHtml(user.name)} ${isSelf ? '<span style="font-size:10px; color:#8b949e; font-weight:normal;">(You)</span>' : ''}</td>
@@ -1894,9 +1903,10 @@ function renderUsersTable(users) {
         <td>
           <div class="users-actions">
             <button class="btn-action ${verifyBtnClass}" onclick="handleUserVerify('${user.email}', ${!user.isVerified})">${verifyBtnText}</button>
-            <button class="btn-action ${roleBtnClass}" onclick="handleUserAdmin('${user.email}', ${!user.isAdmin})" ${isSelf ? 'disabled' : ''}>${roleBtnText}</button>
+            <button class="btn-action ${roleBtnClass}" onclick="handleUserAdmin('${user.email}', ${!user.isAdmin})" ${roleBtnDisabled}>${roleBtnText}</button>
+            <button class="btn-action btn-edit-perms" onclick="openPermsModal('${user.email}', '${escapeHtml(user.name)}')" ${permsBtnDisabled}>Permissions</button>
             <button class="btn-action btn-reset-pwd" onclick="openPwdModal('${user.email}', '${escapeHtml(user.name)}', ${user.isAdmin})">Reset Pwd</button>
-            <button class="btn-action btn-delete" onclick="handleUserDelete('${user.email}')" ${isSelf ? 'disabled' : ''}>Delete</button>
+            <button class="btn-action btn-delete" onclick="handleUserDelete('${user.email}')" ${deleteBtnDisabled}>Delete</button>
           </div>
         </td>
       </tr>
@@ -2168,5 +2178,95 @@ function initPwdModal() {
     if (el) el.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') submitBtn.click();
     });
+  });
+}
+
+// ===== EDIT PERMISSIONS MODAL =====
+function openPermsModal(email, name) {
+  const overlay = document.getElementById('perms-modal-overlay');
+  document.getElementById('perms-modal-email').value = email;
+  document.getElementById('perms-modal-title').textContent = `Edit Permissions`;
+  document.getElementById('perms-modal-target-info').textContent = `Editing permissions for: ${name} (${email})`;
+  
+  // Find user in stored users list
+  const user = (window.allUsersList || []).find(u => u.email.toLowerCase() === email.toLowerCase());
+  const perms = user ? user.permissions || {} : {};
+  
+  // Pre-fill checkboxes
+  ['ec2', 'vpc', 's3', 'cf'].forEach(svc => {
+    ['read', 'write', 'execute'].forEach(p => {
+      const el = document.getElementById(`edit-perm-${svc}-${p}`);
+      if (el) {
+        el.checked = Array.isArray(perms[svc]) && perms[svc].includes(p);
+      }
+    });
+  });
+  
+  document.getElementById('perms-modal-error').style.display = 'none';
+  document.getElementById('perms-modal-success').style.display = 'none';
+  overlay.style.display = 'flex';
+}
+window.openPermsModal = openPermsModal;
+
+function initPermsModal() {
+  const overlay = document.getElementById('perms-modal-overlay');
+  const closeBtn = document.getElementById('btn-perms-modal-close');
+  const submitBtn = document.getElementById('btn-perms-modal-submit');
+
+  if (closeBtn) closeBtn.addEventListener('click', () => {
+    overlay.style.display = 'none';
+  });
+
+  if (overlay) overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.style.display = 'none';
+  });
+
+  if (submitBtn) submitBtn.addEventListener('click', async () => {
+    const email = document.getElementById('perms-modal-email').value.trim();
+    const errDiv = document.getElementById('perms-modal-error');
+    const succDiv = document.getElementById('perms-modal-success');
+
+    errDiv.style.display = 'none';
+    succDiv.style.display = 'none';
+
+    // Build permissions object
+    const getCheckedPerms = (svc) => ['read', 'write', 'execute'].filter(p => {
+      const el = document.getElementById(`edit-perm-${svc}-${p}`);
+      return el ? el.checked : false;
+    });
+
+    const permissions = {
+      ec2: getCheckedPerms('ec2'),
+      vpc: getCheckedPerms('vpc'),
+      s3: getCheckedPerms('s3'),
+      cf: getCheckedPerms('cf')
+    };
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving…';
+
+    try {
+      const res = await fetch(`/api/users/update?email=${encodeURIComponent(email)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permissions })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update permissions');
+
+      succDiv.textContent = `✓ Permissions updated successfully!`;
+      succDiv.style.display = 'block';
+
+      // Refresh users list immediately to update local list
+      fetchUsers();
+
+      setTimeout(() => { overlay.style.display = 'none'; }, 1500);
+    } catch (err) {
+      errDiv.textContent = err.message;
+      errDiv.style.display = 'block';
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '🛡️ &nbsp;Save Permissions';
+    }
   });
 }

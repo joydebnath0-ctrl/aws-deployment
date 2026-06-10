@@ -481,6 +481,7 @@ app.get('/api/users', requireAdmin, (req, res) => {
     email: u.email,
     isAdmin: !!u.isAdmin,
     isVerified: !!u.isVerified,
+    permissions: u.permissions || {},
     createdAt: u.createdAt
   }));
   res.json(sanitizedUsers);
@@ -489,7 +490,7 @@ app.get('/api/users', requireAdmin, (req, res) => {
 // 2. Update user status (verify / toggle admin)
 app.put('/api/users/update', requireAdmin, (req, res) => {
   const targetEmail = (req.query.email || '').toLowerCase().trim();
-  const { isVerified, isAdmin } = req.body;
+  const { isVerified, isAdmin, permissions } = req.body;
 
   if (!targetEmail) {
     return res.status(400).json({ error: 'Email query parameter is required.' });
@@ -498,6 +499,12 @@ app.put('/api/users/update', requireAdmin, (req, res) => {
   if (targetEmail === req.userEmail.toLowerCase().trim()) {
     if (isAdmin === false) {
       return res.status(400).json({ error: 'You cannot demote yourself from Admin status.' });
+    }
+  }
+
+  if (targetEmail === 'joy.debnath@webskitters.com') {
+    if (isAdmin === false) {
+      return res.status(400).json({ error: 'The primary admin user Joy Debnath cannot be demoted from Admin status.' });
     }
   }
 
@@ -525,6 +532,24 @@ app.put('/api/users/update', requireAdmin, (req, res) => {
     }
   }
 
+  if (permissions !== undefined && !users[userIndex].isAdmin) {
+    const VALID_SERVICES = ['ec2', 'vpc', 's3', 'cf'];
+    const VALID_PERMS = ['read', 'write', 'execute'];
+    const sanitizedPermissions = {};
+    if (permissions && typeof permissions === 'object') {
+      VALID_SERVICES.forEach(svc => {
+        if (Array.isArray(permissions[svc])) {
+          sanitizedPermissions[svc] = permissions[svc].filter(p => VALID_PERMS.includes(p));
+        } else {
+          sanitizedPermissions[svc] = [];
+        }
+      });
+    } else {
+      VALID_SERVICES.forEach(svc => { sanitizedPermissions[svc] = []; });
+    }
+    users[userIndex].permissions = sanitizedPermissions;
+  }
+
   writeUsersDB(users);
   res.json({ message: 'User updated successfully' });
 });
@@ -539,6 +564,10 @@ app.delete('/api/users/delete', requireAdmin, (req, res) => {
 
   if (targetEmail === req.userEmail.toLowerCase().trim()) {
     return res.status(400).json({ error: 'You cannot delete your own admin account.' });
+  }
+
+  if (targetEmail === 'joy.debnath@webskitters.com') {
+    return res.status(400).json({ error: 'The primary admin account Joy Debnath cannot be deleted.' });
   }
 
   const users = readUsersDB();
