@@ -7,6 +7,39 @@ const os = require('os');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
 
+const PORT_PROTOCOL_MAP = {
+  '20': 'FTP-Data',
+  '21': 'FTP',
+  '22': 'SSH',
+  '23': 'Telnet',
+  '25': 'SMTP',
+  '53': 'DNS',
+  '80': 'HTTP',
+  '110': 'POP3',
+  '143': 'IMAP',
+  '443': 'HTTPS',
+  '465': 'SMTPS',
+  '993': 'IMAPS',
+  '995': 'POP3S',
+  '1433': 'MSSQL',
+  '3306': 'MySQL',
+  '3389': 'RDP',
+  '5432': 'PostgreSQL',
+  '8080': 'HTTP-Alt',
+  '27017': 'MongoDB'
+};
+
+function getFriendlyProtocol(port, baseProtocol) {
+  const cleanProto = (baseProtocol || 'tcp').toLowerCase();
+  const cleanPort = port ? port.toString().trim() : '';
+  if (cleanProto === 'tcp' || cleanProto === 'udp') {
+    if (PORT_PROTOCOL_MAP[cleanPort]) {
+      return PORT_PROTOCOL_MAP[cleanPort];
+    }
+  }
+  return baseProtocol.toUpperCase();
+}
+
 const app = express();
 const PORT = process.env.PORT || 80;
 
@@ -809,6 +842,10 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
+variable "key_name" {
+  type    = string
+}
+
 variable "instance_name" {
   type    = string
 }
@@ -832,9 +869,13 @@ variable "volume_size" {
   default = 30
 }
 
-variable "allowed_ports" {
-  type    = list(number)
-  default = [22]
+variable "ingress_rules" {
+  type = list(object({
+    from_port   = number
+    to_port     = number
+    protocol    = string
+    cidr_blocks = list(string)
+  }))
 }
 
 variable "vpc_id" {
@@ -858,7 +899,7 @@ resource "tls_private_key" "key" {
 }
 
 resource "aws_key_pair" "key" {
-  key_name   = "\${var.instance_name}-key"
+  key_name   = var.key_name
   public_key = tls_private_key.key.public_key_openssh
 }
 
@@ -867,21 +908,13 @@ resource "aws_security_group" "sg" {
   description = "Security group for \${var.instance_name}"
   vpc_id      = var.vpc_id != "" ? var.vpc_id : null
 
-  ingress {
-    description = "SSH access"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
   dynamic "ingress" {
-    for_each = [for p in var.allowed_ports : p if p != 22]
+    for_each = var.ingress_rules
     content {
-      from_port   = ingress.value
-      to_port     = ingress.value
-      protocol    = "tcp"
-      cidr_blocks = ["0.0.0.0/0"]
+      from_port   = ingress.value.from_port
+      to_port     = ingress.value.to_port
+      protocol    = ingress.value.protocol
+      cidr_blocks = ingress.value.cidr_blocks
     }
   }
 
@@ -1300,7 +1333,7 @@ app.get('/api/stream-logs', (req, res) => {
 
 // 2.5 Preview deployment configuration
 app.post('/api/preview', requirePermission('ec2','write'), (req, res) => {
-  const { name, region, instanceType, amiId, volumeSize, ports, userData, vpcId, subnetId, associateEip } = req.body;
+  const { name, region, instanceType, amiId, volumeSize, userData, vpcId, subnetId, associateEip, keyName } = req.body;
 
   if (!name || !region || !instanceType || !amiId) {
     return res.status(400).json({ error: 'Missing required parameters' });
@@ -1311,12 +1344,65 @@ app.post('/api/preview', requirePermission('ec2','write'), (req, res) => {
     return res.status(400).json({ error: 'Name must be alphanumeric and dashes only' });
   }
 
-  // Parse allowed ports list
-  const allowedPorts = (ports || '').split(',')
-    .map(p => parseInt(p.trim(), 10))
-    .filter(p => !isNaN(p));
-  if (!allowedPorts.includes(22)) {
-    allowedPorts.push(22);
+  if (keyName && !/^[a-zA-Z0-9_-]+$/.test(keyName)) {
+    return res.status(400).json({ error: 'Key name must be alphanumeric, underscores, and dashes only' });
+  }
+
+  // Parse ingressRules from request body
+  let parsedRules = [];
+  if (Array.isArray(req.body.ingressRules)) {
+    parsedRules = req.body.ingressRules.map(r => {
+      let from_port = 22;
+      let to_port = 22;
+      let protocol = 'tcp';
+      
+      if (r.port) {
+        if (typeof r.port === 'number') {
+          from_port = r.port;
+          to_port = r.port;
+        } else if (typeof r.port === 'string') {
+          const range = r.port.split('-');
+          if (range.length === 2) {
+            from_port = parseInt(range[0], 10);
+            to_port = parseInt(range[1], 10);
+          } else {
+            from_port = parseInt(r.port, 10);
+            to_port = parseInt(r.port, 10);
+          }
+        }
+      }
+      if (r.protocol) {
+        protocol = r.protocol.toLowerCase();
+      }
+      return {
+        from_port,
+        to_port,
+        protocol,
+        cidr_blocks: ["0.0.0.0/0"]
+      };
+    }).filter(r => !isNaN(r.from_port) && !isNaN(r.to_port));
+  } else {
+    const allowedPortsStr = req.body.ports || '22';
+    const allowedPorts = allowedPortsStr.split(',')
+      .map(p => parseInt(p.trim(), 10))
+      .filter(p => !isNaN(p));
+    parsedRules = allowedPorts.map(port => ({
+      from_port: port,
+      to_port: port,
+      protocol: 'tcp',
+      cidr_blocks: ["0.0.0.0/0"]
+    }));
+  }
+
+  // Ensure SSH access (port 22/tcp) is ALWAYS present for access safety
+  const sshExists = parsedRules.some(r => r.from_port === 22 && r.to_port === 22 && r.protocol === 'tcp');
+  if (!sshExists) {
+    parsedRules.unshift({
+      from_port: 22,
+      to_port: 22,
+      protocol: 'tcp',
+      cidr_blocks: ["0.0.0.0/0"]
+    });
   }
 
   // Generate tfvars object representation
@@ -1327,10 +1413,11 @@ app.post('/api/preview', requirePermission('ec2','write'), (req, res) => {
     ami_id: amiId,
     user_data: userData || '',
     volume_size: parseInt(volumeSize, 10) || 30,
-    allowed_ports: allowedPorts,
+    ingress_rules: parsedRules,
     vpc_id: vpcId || '',
     subnet_id: subnetId || '',
-    associate_eip: !!associateEip
+    associate_eip: !!associateEip,
+    key_name: keyName || `${name}-key`
   };
 
   res.json({
@@ -1341,7 +1428,7 @@ app.post('/api/preview', requirePermission('ec2','write'), (req, res) => {
 
 // 3. Trigger new deployment
 app.post('/api/deploy', requirePermission('ec2','write'), (req, res) => {
-  const { name, region, instanceType, amiId, volumeSize, ports, awsProfile, userData, vpcId, subnetId, associateEip } = req.body;
+  const { name, region, instanceType, amiId, volumeSize, awsProfile, userData, vpcId, subnetId, associateEip, keyName } = req.body;
 
   if (!name || !region || !instanceType || !amiId) {
     return res.status(400).json({ error: 'Missing required parameters' });
@@ -1351,6 +1438,71 @@ app.post('/api/deploy', requirePermission('ec2','write'), (req, res) => {
   if (!/^[a-zA-Z0-9-]+$/.test(name)) {
     return res.status(400).json({ error: 'Name must be alphanumeric and dashes only' });
   }
+
+  if (keyName && !/^[a-zA-Z0-9_-]+$/.test(keyName)) {
+    return res.status(400).json({ error: 'Key name must be alphanumeric, underscores, and dashes only' });
+  }
+
+  const finalKeyName = keyName || `${name}-key`;
+
+  // Parse ingressRules from request body
+  let parsedRules = [];
+  if (Array.isArray(req.body.ingressRules)) {
+    parsedRules = req.body.ingressRules.map(r => {
+      let from_port = 22;
+      let to_port = 22;
+      let protocol = 'tcp';
+      
+      if (r.port) {
+        if (typeof r.port === 'number') {
+          from_port = r.port;
+          to_port = r.port;
+        } else if (typeof r.port === 'string') {
+          const range = r.port.split('-');
+          if (range.length === 2) {
+            from_port = parseInt(range[0], 10);
+            to_port = parseInt(range[1], 10);
+          } else {
+            from_port = parseInt(r.port, 10);
+            to_port = parseInt(r.port, 10);
+          }
+        }
+      }
+      if (r.protocol) {
+        protocol = r.protocol.toLowerCase();
+      }
+      return {
+        from_port,
+        to_port,
+        protocol,
+        cidr_blocks: ["0.0.0.0/0"]
+      };
+    }).filter(r => !isNaN(r.from_port) && !isNaN(r.to_port));
+  } else {
+    const allowedPortsStr = req.body.ports || '22';
+    const allowedPorts = allowedPortsStr.split(',')
+      .map(p => parseInt(p.trim(), 10))
+      .filter(p => !isNaN(p));
+    parsedRules = allowedPorts.map(port => ({
+      from_port: port,
+      to_port: port,
+      protocol: 'tcp',
+      cidr_blocks: ["0.0.0.0/0"]
+    }));
+  }
+
+  // Ensure SSH access (port 22/tcp) is ALWAYS present for access safety
+  const sshExists = parsedRules.some(r => r.from_port === 22 && r.to_port === 22 && r.protocol === 'tcp');
+  if (!sshExists) {
+    parsedRules.unshift({
+      from_port: 22,
+      to_port: 22,
+      protocol: 'tcp',
+      cidr_blocks: ["0.0.0.0/0"]
+    });
+  }
+
+  const friendlyPortsStr = parsedRules.map(r => r.from_port === r.to_port ? `${r.from_port}/${getFriendlyProtocol(r.from_port, r.protocol)}` : `${r.from_port}-${r.to_port}/${r.protocol.toUpperCase()}`).join(', ');
 
   const db = readDB();
   if (db.find(d => d.name === name)) {
@@ -1365,14 +1517,6 @@ app.post('/api/deploy', requirePermission('ec2','write'), (req, res) => {
   // Write main.tf
   fs.writeFileSync(path.join(targetDir, 'main.tf'), TERRAFORM_TEMPLATE);
 
-  // Parse allowed ports list
-  const allowedPorts = ports.split(',')
-    .map(p => parseInt(p.trim(), 10))
-    .filter(p => !isNaN(p));
-  if (!allowedPorts.includes(22)) {
-    allowedPorts.push(22);
-  }
-
   // Write tfvars
   const tfVars = {
     aws_region: region,
@@ -1381,10 +1525,11 @@ app.post('/api/deploy', requirePermission('ec2','write'), (req, res) => {
     ami_id: amiId,
     user_data: userData || "",
     volume_size: parseInt(volumeSize, 10) || 30,
-    allowed_ports: allowedPorts,
+    ingress_rules: parsedRules,
     vpc_id: vpcId || '',
     subnet_id: subnetId || '',
-    associate_eip: !!associateEip
+    associate_eip: !!associateEip,
+    key_name: finalKeyName
   };
   fs.writeFileSync(path.join(targetDir, 'terraform.tfvars.json'), JSON.stringify(tfVars, null, 2));
 
@@ -1395,10 +1540,11 @@ app.post('/api/deploy', requirePermission('ec2','write'), (req, res) => {
     instanceType,
     amiId,
     volumeSize: tfVars.volume_size,
-    ports: allowedPorts.join(','),
+    ports: friendlyPortsStr,
     vpcId: vpcId || '',
     subnetId: subnetId || '',
     associateEip: !!associateEip,
+    keyName: finalKeyName,
     status: 'creating',
     publicIp: 'N/A',
     instanceId: 'N/A',
@@ -1425,7 +1571,7 @@ app.post('/api/deploy', requirePermission('ec2','write'), (req, res) => {
       const outputs = await getOutput(targetDir, awsProfile);
 
       // Save PEM Key
-      const keyPath = path.join(targetDir, `${name}.pem`);
+      const keyPath = path.join(targetDir, `${finalKeyName}.pem`);
       fs.writeFileSync(keyPath, outputs.private_key_pem.value);
       fs.chmodSync(keyPath, 0o400);
 
@@ -1508,10 +1654,22 @@ app.post('/api/destroy', requirePermission('ec2', 'execute'), (req, res) => {
 // 5. Download Private Key
 app.get('/api/download-key/:name', requirePermission('ec2','read'), (req, res) => {
   const { name } = req.params;
-  const keyPath = path.join(DEPLOYMENTS_DIR, name, `${name}.pem`);
+  const db = readDB();
+  const deployment = db.find(d => d.name === name);
+  const keyName = deployment && deployment.keyName ? deployment.keyName : `${name}-key`;
+
+  let keyPath = path.join(DEPLOYMENTS_DIR, name, `${keyName}.pem`);
+  let fileName = `${keyName}.pem`;
+  if (!fs.existsSync(keyPath)) {
+    const legacyPath = path.join(DEPLOYMENTS_DIR, name, `${name}.pem`);
+    if (fs.existsSync(legacyPath)) {
+      keyPath = legacyPath;
+      fileName = `${name}.pem`;
+    }
+  }
 
   if (fs.existsSync(keyPath)) {
-    res.setHeader('Content-Disposition', `attachment; filename=${name}.pem`);
+    res.setHeader('Content-Disposition', `attachment; filename=${fileName}`);
     res.setHeader('Content-Type', 'application/x-pem-file');
     fs.createReadStream(keyPath).pipe(res);
   } else {

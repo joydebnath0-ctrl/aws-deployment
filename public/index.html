@@ -349,19 +349,43 @@
             <!-- NETWORK TAB -->
             <div class="ec2-tab-content" id="tab-content-ec2-network">
               <div class="ec2-form-group">
-                <label class="ec2-label">Allowed Inbound Ports (TCP)</label>
-                <input type="text" id="allowed-ports" class="ec2-input" value="22, 80, 443" placeholder="22, 80, 443, 8080">
-                <p class="field-err" id="err-allowed-ports" style="display:none;"></p>
-                <p style="font-size:11px;color:#8b949e;margin-top:4px;">Comma-separated port numbers</p>
+                <label class="ec2-label">Allowed Inbound Rules</label>
+                <div style="display: flex; gap: 8px; margin-bottom: 12px; align-items: flex-start;">
+                  <div style="flex: 2;">
+                    <input type="text" id="rule-port" class="ec2-input" placeholder="Port (e.g. 80, 5000-6000)" style="margin:0;">
+                    <p class="field-err" id="err-rule-port" style="display:none; font-size:11px; margin-top:2px;"></p>
+                  </div>
+                  <div style="flex: 1;">
+                    <select id="rule-protocol" class="ec2-select" style="margin:0;">
+                      <option value="tcp">TCP</option>
+                      <option value="udp">UDP</option>
+                      <option value="icmp">ICMP</option>
+                    </select>
+                  </div>
+                  <button type="button" class="ec2-btn-primary" id="btn-add-rule" style="padding:10px 14px; font-size:13px; line-height:1; height:38px; margin:0;">+ Add</button>
+                </div>
+                
+                <div style="background: #161b22; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; margin-bottom: 12px;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+                    <thead>
+                      <tr style="border-bottom: 1px solid #30363d; background: #0d1117;">
+                        <th style="padding: 8px 12px; color: #8b949e; font-weight: 500;">Port / Range</th>
+                        <th style="padding: 8px 12px; color: #8b949e; font-weight: 500;">Protocol</th>
+                        <th style="padding: 8px 12px; color: #8b949e; font-weight: 500; text-align: right;">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody id="rules-list-body">
+                      <!-- Dynamic rules -->
+                    </tbody>
+                  </table>
+                </div>
+                <p class="field-err" id="err-allowed-ports" style="display:none; margin-top:4px;"></p>
               </div>
               <div class="ec2-form-group">
-                <label class="ec2-label">Key Pair</label>
-                <select id="key-pair" class="ec2-select">
-                  <option>— Create new key pair —</option>
-                  <option>my-key-pair</option>
-                  <option>dev-key</option>
-                  <option>prod-key</option>
-                </select>
+                <label class="ec2-label">Key Pair / PEM Name</label>
+                <input type="text" id="ec2-key-name" class="ec2-input" placeholder="e.g. my-key-pair">
+                <p class="field-err" id="err-ec2-key-name" style="display:none;"></p>
+                <p style="font-size:11px;color:#8b949e;margin-top:4px;">Define a custom name for the created key pair and .pem file. Alphanumeric, hyphens, and underscores only.</p>
               </div>
               <div class="ec2-form-group">
                 <label class="ec2-label">VPC Network</label>
@@ -415,6 +439,7 @@
                   <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:#8b949e;">VPC Network</span><span style="color:#e2e8f0;font-weight:500;" id="summary-vpc">Default VPC</span></div>
                   <div style="display:flex;justify-content:space-between;font-size:12px;" id="summary-subnet-row"><span style="color:#8b949e;">Subnet</span><span style="color:#e2e8f0;font-weight:500;" id="summary-subnet">Default Subnet</span></div>
                   <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:#8b949e;">Elastic IP</span><span style="color:#e2e8f0;font-weight:500;" id="summary-eip">No</span></div>
+                  <div style="display:flex;justify-content:space-between;font-size:12px;"><span style="color:#8b949e;">Key Pair Name</span><span style="color:#e2e8f0;font-weight:500;" id="summary-key-name">—</span></div>
                 </div>
               </div>
             </div>

@@ -138,8 +138,9 @@ function initEC2UI() {
   const diskNumber = document.getElementById('disk-number');
   const nameInput = document.getElementById('instance-name');
   const regionSelect = document.getElementById('aws-region');
-  const portsInput = document.getElementById('allowed-ports');
   const profileSelect = document.getElementById('aws-profile');
+
+  renderIngressRules();
 
   INSTANCE_TYPES.forEach(t => {
     const opt = document.createElement('option');
@@ -229,8 +230,39 @@ function initEC2UI() {
   nameInput.addEventListener('input', () => { document.getElementById('err-instance-name').style.display = 'none'; updateEC2Summary(); });
   regionSelect.addEventListener('change', () => { updateVpcOptionsForEC2(); updateEC2Summary(); });
   instanceTypeSelect.addEventListener('change', updateEC2Summary);
-  portsInput.addEventListener('input', updateEC2Summary);
   profileSelect.addEventListener('change', updateEC2Summary);
+
+  const btnAddRule = document.getElementById('btn-add-rule');
+  const rulePortInput = document.getElementById('rule-port');
+  if (btnAddRule) btnAddRule.addEventListener('click', handleAddRule);
+  if (rulePortInput) {
+    rulePortInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleAddRule();
+      }
+    });
+    rulePortInput.addEventListener('input', () => {
+      const val = rulePortInput.value.trim();
+      const ruleProtocolSelect = document.getElementById('rule-protocol');
+      if (ruleProtocolSelect) {
+        const knownTcpPorts = ['20', '21', '22', '23', '25', '80', '110', '143', '443', '465', '993', '995', '1433', '3306', '3389', '5432', '8080', '27017'];
+        if (knownTcpPorts.includes(val)) {
+          ruleProtocolSelect.value = 'tcp';
+        }
+      }
+    });
+  }
+
+  const ec2KeyNameInput = document.getElementById('ec2-key-name');
+  if (ec2KeyNameInput) {
+    ec2KeyNameInput.addEventListener('input', () => {
+      const errField = document.getElementById('err-ec2-key-name');
+      if (errField) errField.style.display = 'none';
+      ec2KeyNameInput.classList.remove('err');
+      updateEC2Summary();
+    });
+  }
 
   const ec2VpcSelect = document.getElementById('ec2-vpc');
   if (ec2VpcSelect) ec2VpcSelect.addEventListener('change', () => { updateSubnetOptionsForEC2(); updateEC2Summary(); });
@@ -470,9 +502,9 @@ function updateEC2Summary() {
   const type = document.getElementById('instance-type').value;
   const os = document.getElementById('os-image').value;
   const disk = document.getElementById('disk-number').value;
-  const ports = document.getElementById('allowed-ports').value.trim();
   const vpcName = document.getElementById('ec2-vpc').value;
   const subnetId = document.getElementById('ec2-subnet').value;
+  const keyName = document.getElementById('ec2-key-name') ? document.getElementById('ec2-key-name').value.trim() : '';
 
   const typeObj = INSTANCE_TYPES.find(t => t.value === type);
   document.getElementById('instance-price-info').textContent = typeObj ? `~${typeObj.price} on-demand` : '';
@@ -487,7 +519,10 @@ function updateEC2Summary() {
   document.getElementById('summary-type').textContent = type;
   document.getElementById('summary-os').textContent = osObj ? osObj.label : 'Custom';
   document.getElementById('summary-disk').textContent = `${disk} GB (gp3)`;
-  document.getElementById('summary-ports').textContent = ports || '—';
+  const portsSummary = ec2IngressRules.map(r => `${r.port}/${getFriendlyProtocol(r.port, r.protocol)}`).join(', ');
+  document.getElementById('summary-ports').textContent = portsSummary || 'None';
+  const summaryKeyName = document.getElementById('summary-key-name');
+  if (summaryKeyName) summaryKeyName.textContent = keyName || '—';
 
   // VPC & Subnet Summary update
   const selectedVpc = activeVpcs.find(v => v.name === vpcName);
@@ -535,9 +570,157 @@ function updateS3Summary() {
   document.getElementById('s3-summary-versioning').textContent = versioning ? 'Enabled' : 'Disabled';
 }
 
+const PORT_PROTOCOL_MAP = {
+  '20': 'FTP-Data',
+  '21': 'FTP',
+  '22': 'SSH',
+  '23': 'Telnet',
+  '25': 'SMTP',
+  '53': 'DNS',
+  '80': 'HTTP',
+  '110': 'POP3',
+  '143': 'IMAP',
+  '443': 'HTTPS',
+  '465': 'SMTPS',
+  '993': 'IMAPS',
+  '995': 'POP3S',
+  '1433': 'MSSQL',
+  '3306': 'MySQL',
+  '3389': 'RDP',
+  '5432': 'PostgreSQL',
+  '8080': 'HTTP-Alt',
+  '27017': 'MongoDB'
+};
+
+function getFriendlyProtocol(port, baseProtocol) {
+  const cleanProto = (baseProtocol || 'tcp').toLowerCase();
+  const cleanPort = port ? port.toString().trim() : '';
+  if (cleanProto === 'tcp' || cleanProto === 'udp') {
+    if (PORT_PROTOCOL_MAP[cleanPort]) {
+      return PORT_PROTOCOL_MAP[cleanPort];
+    }
+  }
+  return baseProtocol.toUpperCase();
+}
+
+// ===== EC2 INGRESS RULES STATE & MANAGEMENT =====
+let ec2IngressRules = [
+  { port: '22', protocol: 'tcp' },
+  { port: '80', protocol: 'tcp' },
+  { port: '443', protocol: 'tcp' }
+];
+
+function renderIngressRules() {
+  const tbody = document.getElementById('rules-list-body');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  
+  if (ec2IngressRules.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="3" style="padding: 12px; text-align: center; color: #8b949e;">No custom rules defined (all inbound blocked).</td></tr>`;
+    return;
+  }
+  
+  ec2IngressRules.forEach((rule, idx) => {
+    const tr = document.createElement('tr');
+    tr.style.borderBottom = idx === ec2IngressRules.length - 1 ? 'none' : '1px solid #21262d';
+    
+    const friendlyProto = getFriendlyProtocol(rule.port, rule.protocol);
+    
+    tr.innerHTML = `
+      <td style="padding: 8px 12px; color: #c9d1d9; font-family: monospace;">${rule.port}</td>
+      <td style="padding: 8px 12px; color: #c9d1d9; text-transform: uppercase;">${friendlyProto}</td>
+      <td style="padding: 8px 12px; text-align: right;">
+        <button type="button" class="rule-delete-btn" data-index="${idx}" style="background: none; border: none; color: #f78166; cursor: pointer; padding: 0; font-size: 11px; font-family: inherit;">Remove</button>
+      </td>
+    `;
+    
+    tbody.appendChild(tr);
+  });
+  
+  tbody.querySelectorAll('.rule-delete-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const index = parseInt(e.target.getAttribute('data-index'), 10);
+      ec2IngressRules.splice(index, 1);
+      renderIngressRules();
+      updateEC2Summary();
+    });
+  });
+}
+
+function handleAddRule() {
+  const portInput = document.getElementById('rule-port');
+  const protocolSelect = document.getElementById('rule-protocol');
+  const portErr = document.getElementById('err-rule-port');
+  
+  if (portErr) portErr.style.display = 'none';
+  if (portInput) portInput.classList.remove('err');
+  
+  const portVal = portInput.value.trim();
+  const protocolVal = protocolSelect.value;
+  
+  if (!portVal) {
+    if (portErr) {
+      portErr.textContent = 'Port or range is required';
+      portErr.style.display = 'block';
+    }
+    portInput.classList.add('err');
+    return;
+  }
+  
+  const singlePortRegex = /^\d+$/;
+  const rangePortRegex = /^(\d+)-(\d+)$/;
+  
+  if (singlePortRegex.test(portVal)) {
+    const portNum = parseInt(portVal, 10);
+    if (portNum < 1 || portNum > 65535) {
+      if (portErr) {
+        portErr.textContent = 'Port must be between 1 and 65535';
+        portErr.style.display = 'block';
+      }
+      portInput.classList.add('err');
+      return;
+    }
+  } else if (rangePortRegex.test(portVal)) {
+    const match = portVal.match(rangePortRegex);
+    const startPort = parseInt(match[1], 10);
+    const endPort = parseInt(match[2], 10);
+    if (startPort < 1 || startPort > 65535 || endPort < 1 || endPort > 65535 || startPort >= endPort) {
+      if (portErr) {
+        portErr.textContent = 'Invalid port range (start must be less than end, both 1-65535)';
+        portErr.style.display = 'block';
+      }
+      portInput.classList.add('err');
+      return;
+    }
+  } else {
+    if (portErr) {
+      portErr.textContent = 'Format must be a number (e.g. 80) or range (e.g. 5000-6000)';
+      portErr.style.display = 'block';
+    }
+    portInput.classList.add('err');
+    return;
+  }
+  
+  const duplicate = ec2IngressRules.find(r => r.port === portVal && r.protocol === protocolVal);
+  if (duplicate) {
+    if (portErr) {
+      portErr.textContent = 'Rule already exists';
+      portErr.style.display = 'block';
+    }
+    portInput.classList.add('err');
+    return;
+  }
+  
+  ec2IngressRules.push({ port: portVal, protocol: protocolVal });
+  portInput.value = '';
+  renderIngressRules();
+  updateEC2Summary();
+}
+
 // ===== EC2 VALIDATION =====
 function validateEC2Form() {
   let valid = true;
+  let errorTab = 'ec2-basic';
   const name = document.getElementById('instance-name').value.trim();
   const nameErr = document.getElementById('err-instance-name');
   nameErr.style.display = 'none';
@@ -548,15 +731,25 @@ function validateEC2Form() {
   const diskErr = document.getElementById('err-disk-size');
   diskErr.style.display = 'none';
   if (isNaN(disk) || disk < 8 || disk > 16384) { diskErr.textContent = 'Disk size must be between 8 and 16384 GB'; diskErr.style.display = 'block'; valid = false; }
-  const ports = document.getElementById('allowed-ports').value.trim();
-  const portsErr = document.getElementById('err-allowed-ports');
-  portsErr.style.display = 'none';
-  if (!ports) { portsErr.textContent = 'At least one inbound port is required'; portsErr.style.display = 'block'; valid = false; }
-  else {
-    const list = ports.split(',').map(p => parseInt(p.trim(), 10));
-    if (list.find(p => isNaN(p) || p < 1 || p > 65535) !== undefined) { portsErr.textContent = 'All port values must be valid integers between 1 and 65535'; portsErr.style.display = 'block'; valid = false; }
+  
+  const keyNameInput = document.getElementById('ec2-key-name');
+  const keyName = keyNameInput ? keyNameInput.value.trim() : '';
+  const keyNameErr = document.getElementById('err-ec2-key-name');
+  if (keyNameErr) keyNameErr.style.display = 'none';
+  if (keyNameInput) keyNameInput.classList.remove('err');
+  if (!keyName) {
+    if (keyNameErr) { keyNameErr.textContent = 'Key Pair / PEM Name is required'; keyNameErr.style.display = 'block'; }
+    if (keyNameInput) keyNameInput.classList.add('err');
+    valid = false;
+    errorTab = 'ec2-network';
+  } else if (!/^[a-zA-Z0-9_-]+$/.test(keyName)) {
+    if (keyNameErr) { keyNameErr.textContent = 'Key name must be alphanumeric, underscores, and dashes only'; keyNameErr.style.display = 'block'; }
+    if (keyNameInput) keyNameInput.classList.add('err');
+    valid = false;
+    errorTab = 'ec2-network';
   }
-  if (!valid) document.querySelector('#svc-panel-ec2 [data-tab="ec2-basic"]').click();
+
+  if (!valid) document.querySelector(`#svc-panel-ec2 [data-tab="${errorTab}"]`).click();
   return valid;
 }
 
@@ -590,13 +783,14 @@ async function fetchEC2Preview() {
   const instanceType = document.getElementById('instance-type').value;
   const os = document.getElementById('os-image').value;
   const volumeSize = document.getElementById('disk-number').value;
-  const ports = document.getElementById('allowed-ports').value.trim();
   const userData = document.getElementById('user-data').value;
   const vpcName = document.getElementById('ec2-vpc').value;
   const selectedVpc = activeVpcs.find(v => v.name === vpcName);
   const vpcId = selectedVpc ? selectedVpc.vpcId : '';
   const subnetId = document.getElementById('ec2-subnet').value || '';
   const associateEip = document.getElementById('ec2-associate-eip') ? document.getElementById('ec2-associate-eip').checked : false;
+  const keyNameInput = document.getElementById('ec2-key-name');
+  const keyName = keyNameInput ? keyNameInput.value.trim() : '';
 
   let amiId = '';
   if (os === 'custom') amiId = document.getElementById('custom-ami-id').value.trim() || 'ami-custom-input';
@@ -606,7 +800,7 @@ async function fetchEC2Preview() {
   preMain.textContent = 'Generating preview...';
   preVars.textContent = 'Generating preview...';
   try {
-    const res = await fetch('/api/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ports, userData, vpcId, subnetId, associateEip }) });
+    const res = await fetch('/api/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ingressRules: ec2IngressRules, userData, vpcId, subnetId, associateEip, keyName }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Preview failed');
     preMain.textContent = data.mainTf;
@@ -677,13 +871,14 @@ async function deployEC2Instance() {
   const instanceType = document.getElementById('instance-type').value;
   const os = document.getElementById('os-image').value;
   const volumeSize = document.getElementById('disk-number').value;
-  const ports = document.getElementById('allowed-ports').value.trim();
   const userData = document.getElementById('user-data').value;
   const vpcName = document.getElementById('ec2-vpc').value;
   const selectedVpc = activeVpcs.find(v => v.name === vpcName);
   const vpcId = selectedVpc ? selectedVpc.vpcId : '';
   const subnetId = document.getElementById('ec2-subnet').value || '';
   const associateEip = document.getElementById('ec2-associate-eip') ? document.getElementById('ec2-associate-eip').checked : false;
+  const keyNameInput = document.getElementById('ec2-key-name');
+  const keyName = keyNameInput ? keyNameInput.value.trim() : '';
 
   let amiId = '';
   if (os === 'custom') amiId = document.getElementById('custom-ami-id').value.trim();
@@ -692,11 +887,12 @@ async function deployEC2Instance() {
   setDeployingState(true);
   startLogStream(name);
   try {
-    const res = await fetch('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ports, awsProfile, userData, vpcId, subnetId, associateEip }) });
+    const res = await fetch('/api/deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, region, instanceType, amiId, volumeSize, ingressRules: ec2IngressRules, awsProfile, userData, vpcId, subnetId, associateEip, keyName }) });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Provision failed');
     document.querySelector('#svc-panel-ec2 [data-tab="ec2-deployments"]').click();
     document.getElementById('instance-name').value = '';
+    if (keyNameInput) keyNameInput.value = '';
     document.getElementById('custom-ami-id').value = '';
     document.getElementById('user-data').value = '';
     document.getElementById('userdata-summary').textContent = 'No user data configured';
@@ -704,6 +900,14 @@ async function deployEC2Instance() {
     document.getElementById('disk-number').value = 30;
     const ec2AssociateEip = document.getElementById('ec2-associate-eip');
     if (ec2AssociateEip) ec2AssociateEip.checked = false;
+    
+    // Reset Inbound Rules
+    ec2IngressRules = [
+      { port: '22', protocol: 'tcp' },
+      { port: '80', protocol: 'tcp' },
+      { port: '443', protocol: 'tcp' }
+    ];
+    renderIngressRules();
     
     // Reset VPC Selection
     if (document.getElementById('ec2-vpc')) {
@@ -1255,7 +1459,8 @@ function updateSSHBanner() {
   if (!currentLogTarget) { banner.style.display = 'none'; return; }
   const dep = activeDeployments.find(d => d.name === currentLogTarget);
   if (dep && dep.status === 'active' && dep.publicIp !== 'N/A') {
-    document.getElementById('ssh-command-snippet').textContent = `ssh -i ~/.ssh/${dep.name}.pem ubuntu@${dep.publicIp}`;
+    const keyFile = dep.keyName ? `${dep.keyName}.pem` : `${dep.name}.pem`;
+    document.getElementById('ssh-command-snippet').textContent = `ssh -i ~/.ssh/${keyFile} ubuntu@${dep.publicIp}`;
     document.getElementById('ssh-download-key-btn').href = `/api/download-key/${dep.name}?token=${encodeURIComponent(localStorage.getItem('auth_token') || '')}`;
     banner.style.display = 'block';
     document.getElementById('vpc-created-banner').style.display = 'none';
