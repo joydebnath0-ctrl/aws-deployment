@@ -1815,6 +1815,13 @@ function initUsersUI() {
             });
           } else {
             permSection.style.display = 'block';
+            // Reset checkboxes explicitly to only read checked
+            ['ec2', 'vpc', 's3', 'cf'].forEach(svc => {
+              ['read', 'write', 'execute'].forEach(p => {
+                const el = document.getElementById(`perm-${svc}-${p}`);
+                if (el) el.checked = (p === 'read');
+              });
+            });
           }
         }
       });
@@ -2029,11 +2036,11 @@ async function handleCreateUser(e) {
     document.getElementById('new-user-is-admin').checked = false;
     const permSection = document.getElementById('permissions-section');
     if (permSection) permSection.style.display = 'block';
-    // Clear checkboxes explicitly
+    // Reset checkboxes explicitly
     ['ec2', 'vpc', 's3', 'cf'].forEach(svc => {
       ['read', 'write', 'execute'].forEach(p => {
         const el = document.getElementById(`perm-${svc}-${p}`);
-        if (el) el.checked = false;
+        if (el) el.checked = (p === 'read');
       });
     });
   } catch (err) {

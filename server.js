@@ -323,6 +323,12 @@ app.post('/api/auth/signup', (req, res) => {
     passwordHash,
     isVerified: false,
     verificationToken,
+    permissions: {
+      ec2: ['read'],
+      vpc: ['read'],
+      s3: ['read'],
+      cf: ['read']
+    },
     createdAt: new Date().toISOString()
   };
 
@@ -507,6 +513,16 @@ app.put('/api/users/update', requireAdmin, (req, res) => {
   }
   if (isAdmin !== undefined) {
     users[userIndex].isAdmin = !!isAdmin;
+    if (!users[userIndex].isAdmin) {
+      users[userIndex].permissions = {
+        ec2: ['read'],
+        vpc: ['read'],
+        s3: ['read'],
+        cf: ['read']
+      };
+    } else {
+      delete users[userIndex].permissions;
+    }
   }
 
   writeUsersDB(users);
