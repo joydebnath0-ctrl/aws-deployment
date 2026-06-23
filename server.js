@@ -6,6 +6,7 @@ const { spawn, exec } = require('child_process');
 const os = require('os');
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
+const tls = require('tls');
 const sshTrafficMap = new Map(); // targetIp -> { lastRx, lastTx, lastTime }
 
 
@@ -1344,6 +1345,17 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "sse" {
   }
 }
 
+variable "bucket_policy" {
+  type    = string
+  default = ""
+}
+
+resource "aws_s3_bucket_policy" "bucket_policy" {
+  count  = var.bucket_policy != "" ? 1 : 0
+  bucket = aws_s3_bucket.bucket.id
+  policy = var.bucket_policy
+}
+
 output "bucket_id" {
   value = aws_s3_bucket.bucket.id
 }
@@ -1412,6 +1424,66 @@ app.post('/api/aws-profiles', (req, res) => {
     res.status(500).json({ error: 'Failed to save AWS profile: ' + err.message });
   }
 });
+
+app.delete('/api/aws-profiles/:name', (req, res) => {
+  const { name } = req.params;
+  if (!name) {
+    return res.status(400).json({ error: 'Missing profile name' });
+  }
+  if (name === 'default') {
+    return res.status(400).json({ error: 'The default profile cannot be deleted' });
+  }
+  const credPath = getAwsCredentialsPath();
+  if (!fs.existsSync(credPath)) {
+    return res.status(404).json({ error: 'Credentials file not found' });
+  }
+  try {
+    const content = fs.readFileSync(credPath, 'utf8');
+    const profiles = parseAwsCredentialsFile(content);
+    if (!profiles[name]) {
+      return res.status(404).json({ error: `Profile "${name}" not found` });
+    }
+    delete profiles[name];
+    const newContent = serializeAwsCredentials(profiles);
+    fs.writeFileSync(credPath, newContent, 'utf8');
+    res.json({ success: true, profiles: Object.keys(profiles) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete AWS profile: ' + err.message });
+  }
+});
+
+app.delete('/api/azure-profiles/:name', (req, res) => {
+  const { name } = req.params;
+  if (!name) return res.status(400).json({ error: 'Missing profile name' });
+  try {
+    const profiles = readAzureProfiles();
+    if (!profiles[name]) {
+      return res.status(404).json({ error: `Profile "${name}" not found` });
+    }
+    delete profiles[name];
+    writeAzureProfiles(profiles);
+    res.json({ success: true, profiles: Object.keys(profiles) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete Azure profile: ' + err.message });
+  }
+});
+
+app.delete('/api/gcp-profiles/:name', (req, res) => {
+  const { name } = req.params;
+  if (!name) return res.status(400).json({ error: 'Missing profile name' });
+  try {
+    const profiles = readGcpProfiles();
+    if (!profiles[name]) {
+      return res.status(404).json({ error: `Profile "${name}" not found` });
+    }
+    delete profiles[name];
+    writeGcpProfiles(profiles);
+    res.json({ success: true, profiles: Object.keys(profiles) });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete GCP profile: ' + err.message });
+  }
+});
+
 
 app.get('/api/azure-profiles', (req, res) => {
   try {
@@ -2442,6 +2514,50 @@ app.post('/api/s3/destroy', requirePermission('s3','execute'), (req, res) => {
     }
   };
   execute();
+});
+
+app.post('/api/s3/apply-policy', requirePermission('s3','write'), (req, res) => {
+  const { bucketName, policy } = req.body;
+  if (!bucketName || !policy) {
+    return res.status(400).json({ error: 'Bucket name and policy JSON are required' });
+  }
+
+  // Find bucket profile
+  const db = readS3DB();
+  const match = db.find(b => b.name === bucketName);
+  const awsProfile = match ? match.awsProfile : 'default';
+
+  // Ensure scratch dir exists
+  const scratchDir = path.join(__dirname, 'scratch');
+  if (!fs.existsSync(scratchDir)) {
+    fs.mkdirSync(scratchDir, { recursive: true });
+  }
+
+  const tempPath = path.join(scratchDir, `policy-${bucketName}-${Date.now()}.json`);
+  try {
+    fs.writeFileSync(tempPath, policy, 'utf8');
+  } catch (err) {
+    return res.status(500).json({ error: 'Failed to write temporary policy file: ' + err.message });
+  }
+
+  const args = ['s3api', 'put-bucket-policy', '--bucket', bucketName, '--policy', `file://${tempPath}`];
+  if (awsProfile && awsProfile !== 'default') {
+    args.push('--profile', awsProfile);
+  }
+
+  const { execFile } = require('child_process');
+  execFile('aws', args, (error, stdout, stderr) => {
+    try {
+      if (fs.existsSync(tempPath)) {
+        fs.unlinkSync(tempPath);
+      }
+    } catch (e) {}
+
+    if (error) {
+      return res.status(500).json({ error: stderr.trim() || error.message });
+    }
+    res.json({ message: `Successfully applied bucket policy to ${bucketName}.` });
+  });
 });
 
 function generateMockBillingData(startDate, endDate) {
@@ -3597,7 +3713,7 @@ resource "aws_iam_role_policy" "task_custom" {
         {
           Effect   = "Allow"
           Action   = ["sqs:SendMessage", "sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
-          Resource = "arn:aws:sqs:*:*:\\${split("/", var.task_role_sqs_url)[length(split("/", var.task_role_sqs_url)) - 1]}"
+          Resource = "arn:aws:sqs:*:*:\${split("/", var.task_role_sqs_url)[length(split("/", var.task_role_sqs_url)) - 1]}"
         }
       ] : [],
       contains(var.task_role_permissions, "sns") && var.task_role_sns_topic != "" ? [
@@ -3886,6 +4002,21 @@ app.get('/api/ecs/repositories', requirePermission('ecs', 'read'), async (req, r
     res.json(data.repositories || []);
   } catch (err) {
     res.status(500).json({ error: 'Failed to list ECR repositories: ' + err.message });
+  }
+});
+
+app.post('/api/ecs/repositories/create', requirePermission('ecs', 'write'), async (req, res) => {
+  const profile = req.body.profile || 'default';
+  const region = req.body.region || 'us-east-1';
+  const repositoryName = req.body.repositoryName;
+  if (!repositoryName) {
+    return res.status(400).json({ error: 'Repository name is required' });
+  }
+  try {
+    const data = await runCliJson(['ecr', 'create-repository', '--repository-name', repositoryName, '--region', region], profile);
+    res.json(data.repository || {});
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to create ECR repository: ' + err.message });
   }
 });
 
@@ -7119,7 +7250,7 @@ async function runMonitorCheck() {
   return db;
 }
 
-// Start background polling every 30 seconds
+// Start background polling every 60 seconds
 let monitorInterval = null;
 function startMonitoring() {
   if (monitorInterval) clearInterval(monitorInterval);
